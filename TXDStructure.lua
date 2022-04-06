@@ -1,4 +1,4 @@
---[[
+
 --Enums
 EnumFilterMode = {
 	NEAREST = 1,
@@ -60,15 +60,10 @@ EnumD3DFormat = {
 	DXT5 = 0x35545844,
 },
 
-struct "TXD" {
+class "TXDIO" {
 	textureDictionary = false,
 	readStream = false,
 	writeStream = false,
-	TXD = function(self,pathOrRaw)
-		if pathOrRaw then
-			self:load(pathOrRaw)
-		end
-	end,
 	load = function(self,pathOrRaw)
 		if fileExists(pathOrRaw) then
 			local f = fileOpen(pathOrRaw)
@@ -78,12 +73,13 @@ struct "TXD" {
 			end
 		end
 		self.readStream = ReadStream(pathOrRaw)
-		self.textureDictionary = TextureDictionary(self.readStream)
+		self.textureDictionary = TextureDictionary()
+		self.textureDictionary:read(self.readStream)
 	end,
 	save = function(self,fileName)
 		if fileExists(fileName) then fileDelete(fileName) end
 		self.writeStream = WriteStream()
-		self.textureDictionary:pack(self.writeStream)
+		self.textureDictionary:write(self.writeStream)
 		local f = fileCreate(fileName)
 		fileWrite(f,self.writeStream:save())
 		fileClose(f)
@@ -92,26 +88,26 @@ struct "TXD" {
 	--Custom Functions
 	listTextures = function(self)
 		local nameList = {}
-		local txdChildren = self.textureDictionary.children
+		local txdChildren = self.textureDictionary.textureNatives
 		for i=1,#txdChildren do
-			local child = txdChildren[i]	--Texture Native
-			nameList[i] = child.struct.textureData.name
+			local texNative = txdChildren[i]	--Texture Native
+			nameList[i] = texNative.struct.name
 		end
 		return nameList
 	end,
-	getTextureDataByIndex = function(self,index)
-		local txdChildren = self.textureDictionary.children
+	getTextureNativeDataByIndex = function(self,index)
+		local txdChildren = self.textureDictionary.textureNatives
 		if txdChildren[index] then
-			return txdChildren[index].struct.textureData
+			return txdChildren[index].struct
 		end
 	end,
-	getTextureDataByName = function(self,name)
-		local txdChildren = self.textureDictionary.children
+	getTextureNativeDataByName = function(self,name)
+		local txdChildren = self.textureDictionary.textureNatives
 		local textureDataList = {}
 		for i=1,#txdChildren do
-			local child = txdChildren[i]	--Texture Native
-			if child.struct.textureData.name == name then
-				table.insert(textureDataList,child.struct.textureData)
+			local texNative = txdChildren[i]	--Texture Native
+			if texNative.struct.name == name then
+				table.insert(textureDataList,texNative)
 			end
 		end
 		return unpack(textureDataList)
@@ -126,126 +122,91 @@ struct "TXD" {
 		--todo
 	end,
 	getTexture = function(self,textureID)
-		local txdChildren = self.textureDictionary.children
+		local txdChildren = self.textureDictionary.textureNatives
 		if not txdChildren[textureID] then return false end
-		local texData = txdChildren[textureID].struct.textureData
-		if texData.d3dformat == EnumD3DFormat.DXT1 or texData.d3dformat == EnumD3DFormat.DXT3 or texData.d3dformat == EnumD3DFormat.DXT5 then --DXT
+		local texNative = txdChildren[textureID]
+		if texNative.struct.d3dformat == EnumD3DFormat.DXT1 or texNative.struct.d3dformat == EnumD3DFormat.DXT3 or texNative.struct.d3dformat == EnumD3DFormat.DXT5 then --DXT
 			local dds = DDSTexture()
-			dds:convertFromTXD(texData)
+			dds:convertFromTXD(texNative)
 			local writeStream = WriteStream()
-			dds:pack(writeStream)
+			dds:write(writeStream)
 			return writeStream:save()
 		else --Plain
 			local bmp = BMPTexture()
-			bmp:convertFromTXD(texData)
+			bmp:convertFromTXD(texNative)
 			local writeStream = WriteStream()
-			bmp:pack(writeStream)
+			bmp:write(writeStream)
 			return writeStream:save()
 		end
 	end,
 }
 
-struct "TextureDictionary" {
-	headSection = false,
-	struct = false,
-	extension = false,
-	children = {},
-	TextureDictionary = function(self,readStream)
-		self:unpack(readStream)
-	end,
-	unpack = function(self,readStream)
-		self.headSection = ChunkHeaderInfo()
-		self.headSection:unpack(readStream)
-		self.struct = Struct()
-		self.struct.unpackRead = function(self,readStream)
-			self.textureCount = readStream:read(uint16)	--2Bytes
+class "TextureDictionaryStruct" {
+	extend = "Struct",
+	textureNativeCount = false,
+	deviceID = false,
+	methodContinue = {
+		read = function(self,readStream)
+			self.textureNativeCount = readStream:read(uint16)	--2Bytes
 			self.deviceID = readStream:read(uint16)	--2Bytes
-		end
-		self.struct.getSize = function(self)
-			return 4+self:_getSize()
-		end
-		self.struct:unpack(readStream)
-		for i=1,self.struct.textureCount do
-			self.children[i] = TextureNative()
-			self.children[i]:unpack(readStream)	--Texture Native
-		end
-		self.extension = Extension()
-		self.extension:unpack(readStream)
-	end,
-	pack = function(self,writeStream)
-		self.headSection:pack(writeStream)
-		
-		self.struct.packWrite = function(self,writeStream)
-			writeStream:write(self.textureCount,uint16)
+		end,
+		write = function(self,writeStream)
+			writeStream:write(self.textureNativeCount,uint16)
 			writeStream:write(self.deviceID,uint16)
-		end
-		self.struct:pack(writeStream)
-		for i=1,self.struct.textureCount do
-			self.children[i]:pack(writeStream)
-		end
-		self.extension:pack(writeStream)
-	end,
-	removeByID = function(self,index)
-		if self.children[index] then
-			table.remove(self.children,index)
-			self.struct.textureCount = self.struct.textureCount-1
+		end,
+		getSize = function(self)
+			return 4
+		end,
+	}
+}
 
+class "TextureDictionary" {	typeID = 0x16,
+	extend = "Section",
+	struct = false,
+	textureNatives = {},
+	extension = false,
+	methodContinue = {
+		read = function(self,readStream)
+			self.struct = TextureDictionaryStruct()
+			self.struct:read(readStream)
+			for i=1,self.struct.textureNativeCount do
+				self.textureNatives[i] = TextureNative()
+				self.textureNatives[i]:read(readStream)	--Texture Native
+			end
+			self.extension = Extension()
+			self.extension:read(readStream)
+		end,
+		write = function(self,writeStream)
+			self.struct:write(writeStream)
+			for i=1,self.struct.textureNativeCount do
+				self.textureNatives[i]:write(writeStream)
+			end
+			self.extension:write(readStream)
+		end,
+		getSize = function(self)
+			local size = self.struct:getSize()+self.extension:getSize()
+			for i=1,self.struct.textureNativeCount do
+				size = size+self.textureNatives[i]:getSize()
+			end
+			return size
+		end,
+	},
+	removeByID = function(self,index)
+		if self.textureNatives[index] then
+			table.remove(self.textureNatives,index)
+			self.struct.textureNativeCount = self.struct.textureNativeCount-1
 			--Recalculate Size
-			print(self.headSection.size)
-			self.headSection.size = self:getSize()-self.headSection:getSize()
-			print(self.headSection.size)
-		
+			self.size = self:getSize()
 		end
 	end,
 	removeByName = function(self,name)
 	
 	end,
-	getSize = function(self)
-		local size = self.headSection:getSize()+self.struct:getSize()+self.extension:getSize()
-		for i=1,#self.children do
-			size = size + self.children[i]:getSize()
-		end
-			print(size)
-		return size
-	end,
 }
 
-struct "TextureNative" {
-	headSection = false,
-	struct = false,
-	extension = false,
-	unpack = function(self,readStream)
-		self.headSection = ChunkHeaderInfo()
-		self.headSection:unpack(readStream)
-		self.struct = Struct()
-		self.struct.unpackRead = function(self,readStream)
-			self.textureData = TextureData()
-			self.textureData.platform = readStream:read(uint32)
-			self.textureData:unpack(readStream)
-		end
-		self.struct.getSize = function(self)
-			return self.textureData:getSize()+self:_getSize()
-		end
-		self.struct:unpack(readStream)
-		self.extension = Extension()
-		self.extension:unpack(readStream)
-	end,
-	pack = function(self,writeStream)
-		self.headSection:pack(writeStream)
-		self.struct.packWrite = function(self,writeStream)
-			writeStream:write(self.textureData.platform,uint32)
-			self.textureData:pack(writeStream)
-		end
-		self.struct:pack(writeStream)
-		self.extension:pack(writeStream)
-	end,
-	getSize = function(self)
-		return self.headSection:getSize()+self.struct:getSize()+self.extension:getSize()
-	end,
-}
-
-struct "TextureData" {
-	platform = false,	--4Bytes
+class "TextureNativeStruct" {
+	extend = "Struct",
+	platform = false,
 	filterAddressing = false,	--4Bytes
 	name = false,	--32Bytes
 	mask = false,	--32Bytes
@@ -258,95 +219,108 @@ struct "TextureData" {
 	type = false,	--1Bytes
 	flags = false,	--1Bytes
 	textures = {},	--(4+texSize)*Number Bytes
-	unpackReadTexD3D9 = function(self,readStream)
-		self.filterAddressing = readStream:read(uint32);
-		self.name = readStream:read(char,32);
-		self.mask = readStream:read(char,32);
-		self.format = readStream:read(int32)
-		self.d3dformat = readStream:read(int32)
-		self.width = readStream:read(uint16)
-		self.height = readStream:read(uint16)
-		self.depth = readStream:read(uint8)
-		self.mipmapLevels = readStream:read(uint8)
-		self.type = readStream:read(uint8)
-		self.rasterFormat = bitOr(self.format,self.type,0x80)
-		self.flags = readStream:read(uint8)
-		--HAS_ALPHA           (1<<0)
-		--IS_CUBE             (1<<1)
-		--USE_AUTOMIPMAPGEN   (1<<2)
-		--IS_COMPRESSED       (1<<3)
-		if bitAnd(self.flags,8) then--is compressed
-			if bitAnd(self.flags,2) then 
-				--todo: err: Can't have cube maps yet
+	methodContinue = {
+		read = function(self,readStream)
+			self.platform = readStream:read(uint32)
+			if self.platform == EnumPlatform.PLATFORM_D3D9 then
+				self.filterAddressing = readStream:read(uint32);
+				self.name = readStream:read(char,32);
+				self.mask = readStream:read(char,32);
+				self.format = readStream:read(int32)
+				self.d3dformat = readStream:read(int32)
+				self.width = readStream:read(uint16)
+				self.height = readStream:read(uint16)
+				self.depth = readStream:read(uint8)
+				self.mipmapLevels = readStream:read(uint8)
+				self.type = readStream:read(uint8)
+				self.rasterFormat = bitOr(self.format,self.type,0x80)
+				self.flags = readStream:read(uint8)
+				--HAS_ALPHA           (1<<0)
+				--IS_CUBE             (1<<1)
+				--USE_AUTOMIPMAPGEN   (1<<2)
+				--IS_COMPRESSED       (1<<3)
+				if bitAnd(self.flags,8) then--is compressed
+					if bitAnd(self.flags,2) then 
+						--todo: err: Can't have cube maps yet
+					end
+				elseif bitAnd(self.flags,2) then
+					--todo: err: Can't have cube maps yet
+				end
+				if bitAnd(self.rasterFormat,0x4000) ~= 0 then
+					self.palette = readStream:read(bytes,4*32)
+				elseif bitAnd(self.rasterFormat,0x2000) ~= 0 then
+					self.palette = readStream:read(bytes,4*256)
+				end
+				local size,data
+				for i=1,self.mipmapLevels do
+					size = readStream:read(uint32)
+					if i <= self.mipmapLevels then
+						--data = raster->lock(i, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
+						data = readStream:read(bytes,size)
+						--raster->unlock(i);
+					else
+						data = readStream:read(bytes,size)
+					end
+					self.textures[i] = data
+				end
 			end
-		elseif bitAnd(self.flags,2) then
-			--todo: err: Can't have cube maps yet
-		end
-		if bitAnd(self.rasterFormat,0x4000) ~= 0 then
-			self.palette = readStream:read(bytes,4*32)
-		elseif bitAnd(self.rasterFormat,0x2000) ~= 0 then
-			self.palette = readStream:read(bytes,4*256)
-		end
-		local size,data
-		for i=1,self.mipmapLevels do
-			size = readStream:read(uint32)
-			--print(size)
-			if i <= self.mipmapLevels then
-				--data = raster->lock(i, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
-				data = readStream:read(bytes,size)
-				--raster->unlock(i);
-			else
-				data = readStream:read(bytes,size)
+		end,
+		write = function(self,writeStream)
+			if self.platform == EnumPlatform.PLATFORM_D3D9 then
+				writeStream:write(self.filterAddressing,uint32)
+				writeStream:write(self.name,char,32)
+				writeStream:write(self.mask,char,32)
+				writeStream:write(self.format,int32)
+				writeStream:write(self.d3dformat,int32)
+				writeStream:write(self.width,uint16)
+				writeStream:write(self.height,uint16)
+				writeStream:write(self.depth,uint8)
+				writeStream:write(self.mipmapLevels,uint8)
+				writeStream:write(self.type,uint8)
+				writeStream:write(self.flags,uint8)
+				--if not isExported then --This doesn't belong to dds
+					if bitAnd(self.rasterFormat,0x4000) == 1 then
+						writeStream:write(self.palette,bytes,4*32)
+					elseif bitAnd(self.rasterFormat,0x2000) == 1 then
+						writeStream:write(self.palette,bytes,4*256)
+					end
+				--end
+				for i=1,#self.textures do
+					writeStream:write(#self.textures[i],uint32)
+					writeStream:write(self.textures[i],bytes,#self.textures[i])
+				end
 			end
-			self.textures[i] = data
-		end
-	end,
-	unpack = function(self,readStream)
-		if self.platform == EnumPlatform.PLATFORM_D3D9 then
-			self:unpackReadTexD3D9(readStream)
-		end
-		return readStream
-	end,
-	
-	packWriteTexD3D9 = function(self,writeStream,isExported)
-		writeStream:write(self.filterAddressing,uint32)
-		writeStream:write(self.name,char,32)
-		writeStream:write(self.mask,char,32)
-		writeStream:write(self.format,int32)
-		writeStream:write(self.d3dformat,int32)
-		writeStream:write(self.width,uint16)
-		writeStream:write(self.height,uint16)
-		writeStream:write(self.depth,uint8)
-		writeStream:write(self.mipmapLevels,uint8)
-		writeStream:write(self.type,uint8)
-		writeStream:write(self.flags,uint8)
-		if not isExported then --This doesn't belong to dds
-			if bitAnd(self.rasterFormat,0x4000) == 1 then
-				writeStream:write(self.palette,bytes,4*32)
-			elseif bitAnd(self.rasterFormat,0x2000) == 1 then
-				writeStream:write(self.palette,bytes,4*256)
+		end,
+		getSize = function(self)
+			local size = 88
+			for i=1,#self.textures do
+				size = size+(4+#self.textures[i])
 			end
-		end
-		for i=1,#self.textures do
-			writeStream:write(#self.textures[i],uint32)
-			writeStream:write(self.textures[i],bytes,#self.textures[i])
-		end
-	end,
-	pack = function(self,writeStream,isExported)
-		if self.platform == EnumPlatform.PLATFORM_D3D9 then
-			self:packWriteTexD3D9(writeStream,isExported)
-		end
-	end,
-	
-	getSize = function(self)
-		local size = 88
-		for i=1,#self.textures do
-			size = size+(4+#self.textures[i])
-		end
-		return size
-	end,
+			return size
+		end,
+	}
 }
 
+class "TextureNative" {	typeID = 0x15,
+	extend = "Section",
+	struct = false,
+	extension = false,
+	methodContinue = {
+		read = function(self,readStream)
+			self.struct = TextureNativeStruct()
+			self.struct:read(readStream)
+			self.extension = Extension()
+			self.extension:read(readStream)
+		end,
+		write = function(self,writeStream)
+			self.struct:write(writeStream)
+			self.extension:write(readStream)
+		end,
+		getSize = function(self)
+			return self.struct:getSize()+self.extension:getSize()
+		end,
+	}
+}
 
 EnumDDPF = {
 	ALPHAPIXELS = 0x00000001, -- surface has alpha channel
@@ -354,7 +328,7 @@ EnumDDPF = {
 	D3DFORMAT = 0x00000004, -- D3DFormat available
 	RGB = 0x00000040, -- RGB(A) bitmap
 }
-struct "DDSPixelFormat" {
+class "DDSPixelFormat" {
 	blockSize = 0x00000020, --4Bytes  (32)
 	flags = EnumDDPF.D3DFORMAT, --4Bytes (DDPF)
 	d3dformat = EnumD3DFormat.DXT1, --4Bytes
@@ -363,7 +337,7 @@ struct "DDSPixelFormat" {
 	GBitMask = 0, --4Bytes
 	BBitMask = 0, --4Bytes
 	RGBAlphaBitMask = 0, --4Bytes
-	unpack = function(self,readStream)
+	read = function(self,readStream)
 		self.blockSize = readStream:read(uint32)
 		self.flags = readStream:read(uint32)
 		self.d3dformat = readStream:read(uint32)
@@ -373,7 +347,7 @@ struct "DDSPixelFormat" {
 		self.BBitMask = readStream:read(uint32)
 		self.RGBAlphaBitMask = readStream:read(uint32)
 	end,
-	pack = function(self,writeStream)
+	write = function(self,writeStream)
 		writeStream:write(self.blockSize,uint32)
 		writeStream:write(self.flags,uint32)
 		writeStream:write(self.d3dformat,uint32)
@@ -405,23 +379,23 @@ EnumDDSCaps2 = {
 	VOLUME = 0x00200000,
 }
 
-struct "DDSCaps" {
+class "DDSCaps" {
 	caps1 = EnumDDSCaps1.TEXTURE, --4Bytes (DDSCaps1)
 	caps2 = EnumDDSCaps2.NONE, --4Bytes (DDSCaps2)
 	reserved = string.rep("\0",4*2), --4*2Bytes
-	unpack = function(self,readStream)
+	read = function(self,readStream)
 		self.caps1 = readStream:read(uint32)
 		self.caps2 = readStream:read(uint32)
 		self.reserved = readStream:read(bytes,8)
 	end,
-	pack = function(self,writeStream)
+	write = function(self,writeStream)
 		writeStream:write(self.caps1,uint32)
 		writeStream:write(self.caps2,uint32)
 		writeStream:write(self.reserved,bytes,8)
 	end,
 }
 
-struct "DDSHeader" {
+class "DDSHeader" {
 	magic = 0x20534444, --4Bytes (DDS )
 	blockSize = 0x0000007C,  --4Bytes (124)
 	flags = 0x00001007, --4Bytes
@@ -435,7 +409,7 @@ struct "DDSHeader" {
 	pixelFormat = DDSPixelFormat(), --pixelFormat
 	caps = DDSCaps(), --caps
 	reserved2 = 0,  --4Bytes
-	unpack = function(self,readStream)
+	read = function(self,readStream)
 		self.magic = readStream:read(uint32)
 		self.blockSize = readStream:read(uint32)
 		self.flags = readStream:read(uint32)
@@ -445,11 +419,11 @@ struct "DDSHeader" {
 		self.depth = readStream:read(uint32)
 		self.mipmapLevels = readStream:read(uint32)
 		self.reserved1 = readStream:read(bytes,4*11)
-		self.pixelFormat:unpack(readStream)
-		self.caps:unpack(readStream)
+		self.pixelFormat:read(readStream)
+		self.caps:read(readStream)
 		self.reserved2 = readStream:read(uint32)
 	end,
-	pack = function(self,writeStream)
+	write = function(self,writeStream)
 		writeStream:write(self.magic,uint32)
 		writeStream:write(self.blockSize,uint32)
 		writeStream:write(self.flags,uint32)
@@ -459,67 +433,67 @@ struct "DDSHeader" {
 		writeStream:write(self.depth,uint32)
 		writeStream:write(self.mipmapLevels,uint32)
 		writeStream:write(self.reserved1,bytes,4*11)
-		self.pixelFormat:pack(writeStream)
-		self.caps:pack(writeStream)
+		self.pixelFormat:write(writeStream)
+		self.caps:write(writeStream)
 		writeStream:write(self.reserved2,uint32)
 	end,
 }
 
-struct "DDSTexture" {
+class "DDSTexture" {
 	ddsHeader = false,
 	ddsTextureData = false,
-	unpack = function(self,readStream)
+	read = function(self,readStream)
 		self.ddsHeader = DDSHeader()
-		self.ddsHeader:unpack(readStream)
+		self.ddsHeader:read(readStream)
 		self.ddsTextureData = readStream:read(bytes)
 	end,
-	pack = function(self,writeStream)
+	write = function(self,writeStream)
 		writeStream = writeStream or WriteStream()
-		self.ddsHeader:pack(writeStream)
+		self.ddsHeader:write(writeStream)
 		writeStream:write(self.ddsTextureData,bytes)
 		return writeStream
 	end,
-	convertFromTXD = function(self,textureData)
+	convertFromTXD = function(self,textureNative)
 		self.ddsHeader = DDSHeader()
-		self.ddsHeader.height = textureData.height
-		self.ddsHeader.width = textureData.width
-		self.ddsHeader.mipmapLevels = textureData.mipmapLevels
-		self.ddsHeader.pixelFormat.d3dformat = textureData.d3dformat
+		self.ddsHeader.height = textureNative.struct.height
+		self.ddsHeader.width = textureNative.struct.width
+		self.ddsHeader.mipmapLevels = textureNative.struct.mipmapLevels
+		self.ddsHeader.pixelFormat.d3dformat = textureNative.struct.d3dformat
 		local d3dFmt = self.ddsHeader.pixelFormat.d3dformat
 		if not (d3dFmt == EnumD3DFormat.DXT1 or d3dFmt == EnumD3DFormat.DXT3 or d3dFmt == EnumD3DFormat.DXT5) then return false end
 		local writeStream = WriteStream()
-		if textureData.mipmapLevels ~= 1 then
+		if textureNative.struct.mipmapLevels ~= 1 then
 			self.ddsHeader.caps.caps1 = bitOr(self.ddsHeader.caps.caps1,EnumDDSCaps1.MIPMAP,EnumDDSCaps1.COMPLEX)
 		end
-		for i=1,textureData.mipmapLevels do
-			--writeStream:write(#textureData.textures[i],uint32)
-			writeStream:write(textureData.textures[i],bytes)
+		for i=1,textureNative.struct.mipmapLevels do
+			--writeStream:write(#textureNative.struct.textures[i],uint32)
+			writeStream:write(textureNative.struct.textures[i],bytes)
 		end
 		self.ddsTextureData = writeStream:save()
 		return true
 	end,
 	saveFile = function(self,fileName)
-		local ddsData = self:pack()
+		local ddsData = self:write()
 		local file = fileCreate(fileName)
 		fileWrite(file,ddsData:save())
 		fileClose(file)
 	end,
 }
 
-struct "BMPHeader" {
+class "BMPHeader" {
 	type = 0x4D42,
 	size = 0,
 	reserved1 = 0, 
 	reserved2 = 0, 
 	offBits = 0,
-	unpack = function(self,readStream)
+	read = function(self,readStream)
 		self.type = readStream:read(uint16)
 		self.size = readStream:read(uint32)
 		self.reserved1 = readStream:read(uint16)
 		self.reserved2 = readStream:read(uint16)
 		self.offBits = readStream:read(uint32)
 	end,
-	pack = function(self,writeStream)
+	write = function(self,writeStream)
 		writeStream:write(self.type,uint16)
 		writeStream:write(self.size,uint32)
 		writeStream:write(self.reserved1,uint16)
@@ -528,7 +502,7 @@ struct "BMPHeader" {
 	end,
 }
 
-struct "BMPInfoHeader" {
+class "BMPInfoHeader" {
 	size = 0x28,
 	width =  0,
 	height = 0, 
@@ -540,7 +514,7 @@ struct "BMPInfoHeader" {
 	yPelsPerMeter = 0,
 	clrUsed = 0,
 	clrImportant = 0,
-	unpack = function(self,readStream)
+	read = function(self,readStream)
 		self.size = readStream:read(uint32)
 		self.width = readStream:read(uint32)
 		self.height = readStream:read(uint32)
@@ -553,7 +527,7 @@ struct "BMPInfoHeader" {
 		self.clrUsed = readStream:read(uint32)
 		self.clrImportant = readStream:read(uint32)
 	end,
-	pack = function(self,writeStream)
+	write = function(self,writeStream)
 		writeStream:write(self.size,uint32)
 		writeStream:write(self.width,uint32)
 		writeStream:write(self.height,uint32)
@@ -568,41 +542,41 @@ struct "BMPInfoHeader" {
 	end,
 }
 
-struct "BMPTexture" {
+class "BMPTexture" {
 	bmpHeader = BMPHeader(),
 	bmpInfoHeader = BMPInfoHeader(),
 	bmpData = false,
-	unpack = function(self,readStream)
-		self.bmpHeader:unpack(readStream)
-		self.bmpInfoHeader:unpack(readStream)
+	read = function(self,readStream)
+		self.bmpHeader:read(readStream)
+		self.bmpInfoHeader:read(readStream)
 		self.bmpData = readStream:read(bytes)
 	end,
-	pack = function(self,writeStream)
+	write = function(self,writeStream)
 		writeStream = writeStream or WriteStream()
-		self.bmpHeader:pack(writeStream)
-		self.bmpInfoHeader:pack(writeStream)
+		self.bmpHeader:write(writeStream)
+		self.bmpInfoHeader:write(writeStream)
 		writeStream:write(self.bmpData,bytes)
 		return writeStream
 	end,
-	convertFromTXD = function(self,textureData)
+	convertFromTXD = function(self,textureNative)
 		self.bmpHeader = BMPHeader()
-		self.bmpHeader.size = #textureData.textures[1]+0x00000036
+		self.bmpHeader.size = #textureNative.struct.textures[1]+0x00000036
 		self.bmpHeader.offBits = 0x00000036 --No Palette
-		self.bmpInfoHeader.height = textureData.height
-		self.bmpInfoHeader.width = textureData.width
+		self.bmpInfoHeader.height = textureNative.struct.height
+		self.bmpInfoHeader.width = textureNative.struct.width
 		self.bmpInfoHeader.planes = 1
 		self.bmpInfoHeader.bitCount = 32
 		self.bmpInfoHeader.compression = 0
-		self.bmpInfoHeader.sizeImage = #textureData.textures[1]
+		self.bmpInfoHeader.sizeImage = #textureNative.struct.textures[1]
 		self.bmpInfoHeader.xPelsPerMeter = 3780
 		self.bmpInfoHeader.yPelsPerMeter = 3780
 		self.bmpInfoHeader.clrUsed = 0
 		self.bmpInfoHeader.clrImportant = 0
-		self.bmpData = textureData.textures[1]
+		self.bmpData = textureNative.struct.textures[1]
 		return true
 	end,
 	saveFile = function(self,fileName)
-		local bmpData = self:pack()
+		local bmpData = self:write()
 		local file = fileCreate(fileName)
 		fileWrite(file,bmpData:save())
 		fileClose(file)
@@ -610,5 +584,6 @@ struct "BMPTexture" {
 }
 
 -------
-local txd = TXD(fName)
-]]
+local txd = TXDIO()
+txd:load("infernus.txd")
+iprint(txd.textureDictionary)
