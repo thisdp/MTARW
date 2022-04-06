@@ -4,6 +4,9 @@ local type = type
 local pairs = pairs
 local mathFrexp = math.frexp
 local mathFloor = math.floor
+local tableConcat = table.concat
+local strChar = string.char
+local mathHuge = math.huge
 
 function table.count(tabl)
 	local cnt = 0
@@ -48,7 +51,7 @@ function table.inspect(theTable,appendTable,depth,arrayMark)
 			appendTable[#appendTable+1] = ","
 		end
 	end
-	return table.concat(appendTable)
+	return tableConcat(appendTable)
 end
 
 function table.deepcopy(obj)
@@ -73,94 +76,8 @@ function table.find(tab,item)
 	end
 end
 
-function bExtract(num,pos,length)
-	local v = num%(2^(pos+(length or 1)))/(2^pos)
-	return v-v%1
-end
 
-charNumTable = {}
-for i=0,255 do
-	local c = string.char(i)
-	charNumTable[i] = c
-	charNumTable[c] = i
-end
-
-uint32 = {type="number",name="uint32","unsigned",4}
-uint16 = {type="number",name="uint16","unsigned",2}
-uint8 = {type="number",name="uint8","unsigned",1}
-int32 = {type="number",name="int32","signed",4}
-int16 = {type="number",name="int16","signed",2}
-int8 = {type="number",name="int8","signed",1}
-float = {type="number",name="float","float",4}
-char = {type="string",name="char","char",-1}
-bytes = {type="bytes",name="bytes","bytes",-1}
-
-function writeNumber(number,numberType)
-	local len = numberType[2]
-	if numberType[1] == "float" then
-		number = Float2Hex(number)
-	else
-		if number < 0 then number = number+0x100^len end
-	end
-	local str = {}
-	for i=1,len do
-		local byte = number%0x100
-		byte = byte-byte%1
-		str[i] = string.char(byte)
-		number = (number-byte)/0x100
-	end
-	return table.concat(str,"")
-end
-
-function readNumber(data,numberType,offset,maybeResult)
-	local len = numberType[2]
-	local strNum = data:sub(offset,offset+len-1)
-	local num = 0
-	if len ~= #strNum then iprint(debug.getinfo(3)) end
-	for i=1,len do num = num+strNum:sub(i,i):byte()*0x100^(i-1) end
-	if numberType[1] == "signed" then
-		local s = num/0x100^(len-1)
-		if s > 0x7F then num = num-0x100^len end
-	elseif numberType[1] == "float" then
-		num = Hex2Float(num)
-	end
-	if maybeResult then maybeResult[1] = num return end
-	return num
-end
-
-function writeString(str,length)
-	length = length or (#str+1)
-	local data = str:sub(1,length)..string.rep("\0",length-#str)
-	return data
-end
-
-function readString(data,length,offset,maybeResult)
-	local str = data:sub(offset,offset+length-1)
-	local strEnd = str:find("\0") or length
-	str = str:sub(1,strEnd):gsub("%z","")
-	if maybeResult then maybeResult[1] = str return end
-	return str
-end
-
-function writeBytes(str,length)
-	return str:sub(1,length)..string.rep("\0",length-#str)
-end
-
-function readBytes(data,length,offset,maybeResult)
-	local str = data:sub(offset,offset+length-1)
-	if maybeResult then maybeResult[1] = str return end
-	return str
-end
-
-function splitToBit(uint8Num)
-	local bits = {}
-	for i=1,8 do
-		bits[i] = bitExtract(uint8Num,i-1)
-	end
-	return bits
-end
-
-function Hex2Float(c)
+local function Hex2Float(c)
 	if c == 0 then return 0.0 end
 	local b1,b2,b3,b4 = 0,0,0,0
 	b1 = c/0x1000000
@@ -174,9 +91,9 @@ function Hex2Float(c)
 	c = c - b3*0x100
 	b4 = c
 	b4 = b4-b4%1
-	local sign,temp = b1 > 0x7F, b2 / 0x80
-	local expo = b1 % 0x80 * 0x2 + temp-temp%1
-	local mant = (b2 % 0x80 * 0x100 + b3) * 0x100 + b4
+	local sign,temp = b1>0x7F,b2/0x80
+	local expo = b1%0x80*0x2+temp-temp%1
+	local mant = (b2%0x80*0x100+b3)*0x100+b4
 	if sign then
 		sign = -1
 	else
@@ -197,49 +114,119 @@ function Hex2Float(c)
 	return n
 end
 
-function Float2Hex(n)
+local function Float2Hex(n)
 	if n == 0 then return 0 end
 	local sign = 0
 	if n < 0 then
 		sign = 0x80
 		n = -n
 	end
-	local mant, expo = mathFrexp(n)
+	local mant,expo = mathFrexp(n)
 	local hext1,hext2,hext3,hext4
 	if mant ~= mant then
-		hext1 = 0xFF
-		hext2 = 0x88
-		hext3 = 0x00
-		hext4 = 0x00
+		return 0xFF880000
 	elseif mant == mathHuge or expo > 0x80 then
-		hext2 = 0x80
-		hext3 = 0x00
-		hext4 = 0x00
-		if sign == 0 then
-			hext1 = 0x7F
-		else
-			hext1 = 0xFF
-		end
+		hext1 = sign == 0 and 0x7F or 0xFF
+		return 0x880000+hext1*0x1000000
 	elseif (mant == 0.0 and expo == 0) or expo < -0x7E then
-		hext1 = sign
-		hext2 = 0x00
-		hext3 = 0x00
-		hext4 = 0x00
+		return sign*0x1000000
 	else
 		expo = expo + 0x7E
 		mant = (mant*2.0-1.0)*0x800000
 		local temp1 = expo/0x2
-		temp1=temp1-temp1%1
 		local temp2 = mant/0x10000
-		temp2=temp2-temp2%1
 		local temp3 = mant/0x100
-		temp3=temp3-temp3%1
-		hext1 = sign + temp1
-		hext2 = expo%0x2*0x80+temp2
-		hext3 = temp3%0x100
+		hext1 = sign + temp1-temp1%1
+		hext2 = expo%0x2*0x80+temp2-temp2%1
+		hext3 = (temp3-temp3%1)%0x100
 		hext4 = mant%0x100
+		local hexValue = hext1*0x1000000+hext2*0x10000+hext3*0x100+hext4
+		return hexValue-hexValue%1
 	end
-	return mathFloor(hext1*0x1000000+hext2*0x10000+hext3*0x100+hext4)
+end
+
+function bExtract(num,pos,length)
+	local v = num%(2^(pos+(length or 1)))/(2^pos)
+	return v-v%1
+end
+
+local charNumTable = {}
+for i=0,255 do
+	local c = strChar(i)
+	charNumTable[i] = c
+	charNumTable[c] = i
+end
+
+uint32 = {type="number",name="uint32","unsigned",4}
+uint16 = {type="number",name="uint16","unsigned",2}
+uint8 = {type="number",name="uint8","unsigned",1}
+int32 = {type="number",name="int32","signed",4}
+int16 = {type="number",name="int16","signed",2}
+int8 = {type="number",name="int8","signed",1}
+float = {type="number",name="float","float",4}
+char = {type="string",name="char","char",-1}
+bytes = {type="bytes",name="bytes","bytes",-1}
+
+
+local numberWriter = {}
+function writeNumber(number,numberType)
+	local len = numberType[2]
+	if numberType[1] == "float" then
+		number = Float2Hex(number)
+	else
+		if number < 0 then number = number+0x100^len end
+	end
+	for i=1,len do
+		local byte = number%0x100
+		byte = byte-byte%1
+		numberWriter[i] = charNumTable[byte]
+		number = (number-byte)/0x100
+	end
+	return tableConcat(numberWriter,_,_,len)
+end
+
+local readNumberList = {}
+local function readNumber(data,numberType,offset)
+	local len = numberType[2]
+	local numberTag = numberType[1]
+	local num1,num2,num3,num4 = data:byte(offset,offset+len-1)
+	readNumberList[1] = num1
+	readNumberList[2] = num2
+	readNumberList[3] = num3
+	readNumberList[4] = num4
+	local num = 0
+	for i=1,len do
+		num = num+readNumberList[i]*0x100^(i-1)
+	end
+	if numberTag == "signed" then
+		local s = num/0x100^(len-1)
+		if s > 0x7F then num = num-0x100^len end
+	elseif numberTag == "float" then
+		num = Hex2Float(num)
+	end
+	return num
+end
+
+local function writeString(str,length)
+	length = length or (#str+1)
+	local data = str:sub(1,length)..strRep("\0",length-#str)
+	return data
+end
+
+local function readString(data,length,offset)
+	local str = data:sub(offset,offset+length-1)
+	local strEnd = str:find("\0") or length
+	str = str:sub(1,strEnd):gsub("%z","")
+	return str
+end
+
+local function writeBytes(str,length)
+	return str:sub(1,length)..strRep("\0",length-#str)
+end
+
+local function readBytes(data,length,offset)
+	local str = data:sub(offset,offset+length-1)
+	return str
 end
 
 class "ReadStream" {
@@ -252,19 +239,20 @@ class "ReadStream" {
 		self.length = #streamString
 	end,
 	read = function(self,dataType,additionLen)
-		local length
-		local result
-		if dataType.type == "string" then
-			result = readString(self.cachedStr,additionLen or (self.length-self.readingPos),self.readingPos)
+		local length,result
+		local dType = dataType.type
+		local readingPos = self.readingPos
+		if dType == "string" then
+			result = readString(self.cachedStr,additionLen or (self.length-readingPos),readingPos)
 			length = additionLen
-		elseif dataType.type == "bytes" then
-			result = readBytes(self.cachedStr,additionLen or (self.length-self.readingPos),self.readingPos)
+		elseif dType == "bytes" then
+			result = readBytes(self.cachedStr,additionLen or (self.length-readingPos),readingPos)
 			length = additionLen
-		elseif dataType.type == "number" then
-			result = readNumber(self.cachedStr,dataType,self.readingPos)
+		elseif dType == "number" then
+			result = readNumber(self.cachedStr,dataType,readingPos)
 			length = dataType[2]
 		end
-		self.readingPos = self.readingPos+length
+		self.readingPos = readingPos+length
 		return result
 	end,
 }
@@ -272,16 +260,18 @@ class "ReadStream" {
 class "WriteStream" {
 	buffer = {},
 	write = function(self,data,dataType,additionLen)
-		if dataType.type == "string" then
-			self.buffer[#self.buffer+1] = writeString(data,additionLen or #data)
-		elseif dataType.type == "bytes" then
-			self.buffer[#self.buffer+1] = writeBytes(data,additionLen or #data)
-		elseif dataType.type == "number" then
-			self.buffer[#self.buffer+1] = writeNumber(data,dataType)
+		local dType = dataType.type
+		local buffer = self.buffer
+		if dType == "string" then
+			buffer[#buffer+1] = writeString(data,additionLen or #data)
+		elseif dType == "bytes" then
+			buffer[#buffer+1] = writeBytes(data,additionLen or #data)
+		elseif dType == "number" then
+			buffer[#buffer+1] = writeNumber(data,dataType)
 		end
 	end,
 	save = function(self)
-		return table.concat(self.buffer,"")
+		return tableConcat(self.buffer)
 	end
 }
 
