@@ -76,7 +76,7 @@ class "UVAnim" {	typeID = 0x1B,
 	header = false,
 	animType = false,
 	frameCount = false,
-	flag = false,
+	flags = false,
 	duration = false,
 	unused = false,
 	name = false,
@@ -87,7 +87,7 @@ class "UVAnim" {	typeID = 0x1B,
 			self.header = readStream:read(uint32)	--0x0100
 			self.animType = readStream:read(uint32)
 			self.frameCount = readStream:read(uint32)
-			self.flag = readStream:read(uint32)
+			self.flags = readStream:read(uint32)
 			self.duration = readStream:read(float)
 			self.unused = readStream:read(uint32)
 			self.name = readStream:read(char,32)
@@ -108,7 +108,7 @@ class "UVAnim" {	typeID = 0x1B,
 			writeStream:write(self.header,uint32)
 			writeStream:write(self.animType,uint32)
 			writeStream:write(self.frameCount,uint32)
-			writeStream:write(self.flag,uint32)
+			writeStream:write(self.flags,uint32)
 			writeStream:write(self.duration,float)
 			writeStream:write(self.unused,uint32)
 			writeStream:write(self.name,char,32)
@@ -436,7 +436,7 @@ class "GeometryStruct" {
 			self.bTextured2 = bExtract(self.flags,7) == 1
 			self.bNative = bExtract(self.flags,24) == 1
 			self.TextureCount = bExtract(self.flags,16,8)
-			--Read trangle count
+			--Read triangle count
 			self.triangleCount = readStream:read(uint32)
 			self.vertexCount = readStream:read(uint32)
 			self.morphTargetCount = readStream:read(uint32)
@@ -703,7 +703,7 @@ class "MaterialList" {	typeID = 0x08,
 
 class "MaterialStruct" {
 	extend = "Struct",
-	flag = false,
+	flags = false,
 	color = false,
 	unused = false,
 	isTextured = false,
@@ -712,7 +712,7 @@ class "MaterialStruct" {
 	diffuse = false,
 	methodContinue = {
 		read = function(self,readStream)
-			self.flag = readStream:read(uint32)
+			self.flags = readStream:read(uint32)
 			self.color = {readStream:read(uint8),readStream:read(uint8),readStream:read(uint8),readStream:read(uint8)}
 			self.unused = readStream:read(uint32)
 			self.isTextured = readStream:read(uint32) == 1
@@ -721,7 +721,7 @@ class "MaterialStruct" {
 			self.diffuse = readStream:read(uint32)
 		end,
 		write = function(self,writeStream)
-			writeStream:write(self.flag,uint32)
+			writeStream:write(self.flags,uint32)
 			writeStream:write(self.color[1],uint8)
 			writeStream:write(self.color[2],uint8)
 			writeStream:write(self.color[3],uint8)
@@ -874,7 +874,7 @@ class "SpecularMaterial" {	typeID = 0x0253F2F6,
 
 class "TextureStruct" {
 	extend = "Struct",
-	flag = false,
+	flags = false,
 	--Casted From Flags (Read Only)
 	filter = false,
 	UAddressing = false,
@@ -883,16 +883,16 @@ class "TextureStruct" {
 	--
 	methodContinue = {
 		read = function(self,readStream)
-			self.flag = readStream:read(uint32)
+			self.flags = readStream:read(uint32)
 			--Casted From Flags (Read Only)
-			self.filter = bExtract(self.flag,24,8)
-			self.UAddressing = bExtract(self.flag,24,4)
-			self.VAddressing = bExtract(self.flag,20,4)
-			self.hasMipmaps = bExtract(self.flag,19) == 1
+			self.filter = bExtract(self.flags,24,8)
+			self.UAddressing = bExtract(self.flags,24,4)
+			self.VAddressing = bExtract(self.flags,20,4)
+			self.hasMipmaps = bExtract(self.flags,19) == 1
 			--
 		end,
 		write = function(self,writeStream)
-			writeStream:write(self.flag,uint32)
+			writeStream:write(self.flags,uint32)
 		end,
 		getSize = function(self)
 			return 4
@@ -997,14 +997,14 @@ class "BinMeshPLG" {	typeID = 0x50E,
 
 class "Breakable" {	typeID = 0x0253F2FD,
 	extend = "Section",
-	flag = false,
+	flags = false,
 	methodContinue = {
 		read = function(self,readStream)
-			self.flag = readStream:read(uint32)
-			if self.flag ~= 0 then print("Bad flag @Breakable, 'breakable' object is not implemented") end
+			self.flags = readStream:read(uint32)
+			if self.flags ~= 0 then print("Bad flags @Breakable, 'breakable' object is not implemented") end
 		end,
 		write = function(self,writeStream)
-			writeStream:write(self.flag,uint32)
+			writeStream:write(self.flags,uint32)
 		end,
 		getSize = function(self)
 			return 4
@@ -1016,22 +1016,22 @@ class "AtomicStruct" {
 	extend = "Struct",
 	frameIndex = false,			-- Index of the frame within the clump's frame list.
 	geometryIndex = false,		-- Index of the geometry within the clump's frame list.
-	flag = false,				-- Flags
+	flags = false,				-- Flags
 	unused = false,				-- Unused
-	--Casted From flag
+	--Casted From flags
 	atomicCollisionTest = false,	--Unused
 	atomicRender = false,			--The atomic is rendered if it is in the view frustum. It's set to TRUE for all models by default.
 	methodContinue = {
 		read = function(self,readStream)
 			self.frameIndex = readStream:read(uint32)
 			self.geometryIndex = readStream:read(uint32)
-			self.flag = readStream:read(uint32)
+			self.flags = readStream:read(uint32)
 			self.unused = readStream:read(uint32)
 		end,
 		write = function(self,writeStream)
 			writeStream:write(self.frameIndex,uint32)
 			writeStream:write(self.geometryIndex,uint32)
-			writeStream:write(self.flag,uint32)
+			writeStream:write(self.flags,uint32)
 			writeStream:write(self.unused,uint32)
 		end,
 		getSize = function(self)
