@@ -582,8 +582,3 @@ class "BMPTexture" {
 		fileClose(file)
 	end,
 }
-
--------
-local txd = TXDIO()
-txd:load("infernus.txd")
-iprint(txd.textureDictionary)

@@ -678,7 +678,6 @@ class "MaterialList" {	typeID = 0x08,
 			for matIndex=1,self.struct.materialCount do
 				--print("Reading Material",matIndex,readStream.readingPos)
 				self.materials[matIndex] = Material()
-			print(readStream.readingPos)
 				self.materials[matIndex]:read(readStream)
 			end
 			--Cast From Struct (Read Only)
@@ -1272,8 +1271,3 @@ class "DFFIO" {
 		fileClose(f)
 	end,
 }
-
-local dff = DFFIO()
-dff:load("ltsreg01_lawn.dff")
-dff:save("t.dff")
-print(table.inspect(dff.clump.geometryList.geometries[1].materialList))
