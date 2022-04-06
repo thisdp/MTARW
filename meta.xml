@@ -1,0 +1,9 @@
+<meta>
+	<info author="thisdp" name="MTA Lua RW Loader" />
+	<script src="classlib.lua" type="shared" />
+	<script src="utils.lua" type="shared" />
+	<script src="TXDStructure.lua" type="shared" />
+	<script src="DFFStructure.lua" type="shared" />
+	<script src="COLStructure.lua" type="shared" />
+	<oop>true</oop>
+</meta>
