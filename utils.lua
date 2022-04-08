@@ -182,7 +182,7 @@ function writeNumber(number,numberType)
 		numberWriter[i] = charNumTable[byte]
 		number = (number-byte)/0x100
 	end
-	return tableConcat(numberWriter,_,_,len)
+	return tableConcat(numberWriter,_,_,len),len
 end
 
 local readNumberList = {}
@@ -210,7 +210,7 @@ end
 local function writeString(str,length)
 	length = length or (#str+1)
 	local data = str:sub(1,length)..strRep("\0",length-#str)
-	return data
+	return data,#data
 end
 
 local function readString(data,length,offset)
@@ -221,7 +221,8 @@ local function readString(data,length,offset)
 end
 
 local function writeBytes(str,length)
-	return str:sub(1,length)..strRep("\0",length-#str)
+	local bytes = str:sub(1,length)..strRep("\0",length-#str)
+	return bytes,#bytes
 end
 
 local function readBytes(data,length,offset)
@@ -259,16 +260,33 @@ class "ReadStream" {
 
 class "WriteStream" {
 	buffer = {},
+	writingPos = 0,
 	write = function(self,data,dataType,additionLen)
 		local dType = dataType.type
 		local buffer = self.buffer
+		local bufferPos = #buffer+1
+		local addOffset = 0
 		if dType == "string" then
-			buffer[#buffer+1] = writeString(data,additionLen or #data)
+			buffer[bufferPos],addOffset = writeString(data,additionLen or #data)
 		elseif dType == "bytes" then
-			buffer[#buffer+1] = writeBytes(data,additionLen or #data)
+			buffer[bufferPos],addOffset = writeBytes(data,additionLen or #data)
 		elseif dType == "number" then
-			buffer[#buffer+1] = writeNumber(data,dataType)
+			buffer[bufferPos],addOffset = writeNumber(data,dataType)
 		end
+		self.writingPos = self.writingPos+addOffset
+		return bufferPos
+	end,
+	rewrite = function(self,bufferPos,data,dataType,additionLen)
+		local dType = dataType.type
+		local buffer = self.buffer
+		if dType == "string" then
+			buffer[bufferPos] = writeString(data,additionLen or #data)
+		elseif dType == "bytes" then
+			buffer[bufferPos] = writeBytes(data,additionLen or #data)
+		elseif dType == "number" then
+			buffer[bufferPos] = writeNumber(data,dataType)
+		end
+		return bufferPos
 	end,
 	save = function(self)
 		return tableConcat(self.buffer)
