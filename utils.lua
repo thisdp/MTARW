@@ -18,13 +18,14 @@ end
 
 function table.inspect(theTable,appendTable,depth,arrayMark)
 	depth = depth or 0
-	local appendTable = appendTable or {}
+	local appendTable = appendTable or {nil,nil,nil,nil}
 	local theType = type(theTable)
 	if theType == "table" then
 		if #theTable == table.count(theTable) then	--Array
 			for key,value in ipairs(theTable) do
-				if type(value) ~= "function" then
-					if type(value) == "table" then
+				local valueType = type(value)
+				if valueType ~= "function" then
+					if valueType == "table" then
 						appendTable[#appendTable+1] = "\n"
 						appendTable[#appendTable+1] = strRep("	",depth+1)
 					end
@@ -158,9 +159,11 @@ for i=0,255 do
 end
 
 uint32 = {type="number",name="uint32","unsigned",4}
+uint24 = {type="number",name="uint24","unsigned",3}
 uint16 = {type="number",name="uint16","unsigned",2}
 uint8 = {type="number",name="uint8","unsigned",1}
 int32 = {type="number",name="int32","signed",4}
+int24 = {type="number",name="int24","signed",3}
 int16 = {type="number",name="int16","signed",2}
 int8 = {type="number",name="int8","signed",1}
 float = {type="number",name="float","float",4}
@@ -259,8 +262,10 @@ class "ReadStream" {
 }
 
 class "WriteStream" {
-	buffer = {},
-	writingPos = 0,
+	constructor = function(self)
+		self.buffer = {}
+		self.writingPos = 1
+	end,
 	write = function(self,data,dataType,additionLen)
 		local dType = dataType.type
 		local buffer = self.buffer
@@ -287,6 +292,13 @@ class "WriteStream" {
 			buffer[bufferPos] = writeNumber(data,dataType)
 		end
 		return bufferPos
+	end,
+	getSize = function(self)
+		local size = 0
+		for i=1,#self.buffer do
+			size = size+#self.buffer[i]
+		end
+		return size
 	end,
 	save = function(self)
 		return tableConcat(self.buffer)

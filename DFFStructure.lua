@@ -32,6 +32,31 @@ EnumMaterialEffect = {
 	DualUVTransform		= 0x06, -- Dual Textures/UV-Transformation
 }
 
+EnumLightType = {
+	Directional = 0x01,		-- Directional light source
+	Ambient = 0x02,			-- Ambient light source
+	Point = 0x80,			-- Point light source
+	Spot = 0x81,			-- Spotlight
+	SpotSoft = 0x82,		-- Spotlight, soft edges
+}
+
+EnumLightFlag = {
+	Scene = 0x01,	--Lights all the atomics of the object.
+	World = 0x02,	--Lights the entire world.
+}
+
+Enum2DFX = {
+	Light = 0x00,
+	ParticleEffect = 0x01,
+	PedAttractor = 0x03,
+	SunGlare = 0x04,
+	EnterExit = 0x06,
+	StreetSign = 0x07,
+	TriggerPoint = 0x08,
+	CovePoint = 0x09,
+	Escalator = 0x0A
+}
+
 class "UVAnimDict" {	typeID = 0x2B,
 	extend = "Section",
 	struct = false,
@@ -139,6 +164,8 @@ class "Clump" {	typeID = 0x10,
 	geometryList = false,
 	atomics = false,
 	extension = false,
+	indexStructs = false,
+	lights = false,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = ClumpStruct()
@@ -156,8 +183,25 @@ class "Clump" {	typeID = 0x10,
 				self.atomics[i] = Atomic()
 				self.atomics[i]:read(readStream)
 			end
+			local nextSection
+			repeat
+				nextSection = Section()
+				nextSection:read(readStream)
+				if nextSection.type == Struct.typeID then
+					recastClass(nextSection,IndexStruct)
+					nextSection:read(readStream)
+					if not self.indexStructs then self.indexStructs = {} end
+					self.indexStructs[#self.indexStructs+1] = nextSection
+				elseif nextSection.type == Light.typeID then
+					recastClass(nextSection,Light)
+					nextSection:read(readStream)
+					if not self.lights then self.lights = {} end
+					self.lights[#self.lights+1] = nextSection
+				end
+			until nextSection.type == ClumpExtension.typeID
 			--Read Extension
-			self.extension = ClumpExtension()
+			recastClass(nextSection,IndexStruct)
+			self.extension = nextSection
 			self.extension:read(readStream)
 		end,
 		write = function(self,writeStream)
@@ -171,6 +215,15 @@ class "Clump" {	typeID = 0x10,
 				--print("Write Atomic",i)
 				self.atomics[i]:write(writeStream)
 			end
+			--Write Lights
+			if self.indexStructs then
+				for i=1,#self.indexStructs do
+					if self.lights[i] then
+						self.indexStructs[i]:write(writeStream)
+						self.lights[i]:write(writeStream)
+					end
+				end
+			end
 			--Write Extension
 			self.extension:write(writeStream)
 		end,
@@ -181,6 +234,78 @@ class "Clump" {	typeID = 0x10,
 			end
 			size = size+self.extension:getSize()
 			return size
+		end,
+	}
+}
+
+class "IndexStruct" {
+	extend = "Struct",
+	index = false,
+	methodContinue = {
+		read = function(self,readStream)
+			self.index = readStream:read(uint32)
+		end,
+		write = function(self,writeStream)
+			writeStream:write(self.index,uint32)
+		end,
+		getSize = function(self)
+			return 4
+		end
+	}
+}
+
+class "LightStruct" {
+	extend = "Struct",
+	frameIndex = false,
+	radius = false,
+	red = false,
+	green = false,
+	blue = false,
+	direction = false,
+	flags = false,
+	lightType = false,
+	methodContinue = {
+		read = function(self,readStream)
+			self.radius = readStream:read(float)
+			self.red = readStream:read(float)
+			self.green = readStream:read(float)
+			self.blue = readStream:read(float)
+			self.direction = readStream:read(float)
+			self.flags = readStream:read(uint16)
+			self.lightType = readStream:read(uint16)
+		end,
+		write = function(self,writeStream)
+			writeStream:write(self.radius,float)
+			writeStream:write(self.red,float)
+			writeStream:write(self.green,float)
+			writeStream:write(self.blue,float)
+			writeStream:write(self.direction,float)
+			writeStream:write(self.flags,uint16)
+			writeStream:write(self.lightType,uint16)
+		end,
+		getSize = function(self)
+			return 24
+		end,
+	}
+}
+
+class "Light" {	typeID = 0x12,
+	extend = "Section",
+	struct = false,
+	extension = false,
+	methodContinue = {
+		read = function(self,readStream)
+			self.struct = LightStruct()
+			self.struct:read(readStream)
+			self.extension = Extension()
+			self.extension:read(readStream)
+		end,
+		write = function(self,writeStream)
+			self.struct:write(writeStream)
+			self.extension:write(writeStream)
+		end,
+		getSize = function(self)
+			return self.struct:getSize()+self.extension:getSize()
 		end,
 	}
 }
@@ -402,7 +527,7 @@ class "GeometryStruct" {
 	vertexCount = false,
 	morphTargetCount = false,
 	--Data
-	preLightColors = false,
+	vertexColors = false,
 	texCoords = false,
 	triangles = false,
 	vertices = false,
@@ -414,7 +539,7 @@ class "GeometryStruct" {
 	bTristrip = false,
 	bPosition = false,
 	bTextured = false,
-	bPrelight = false,
+	bVertexColor = false,
 	bNormal = false,
 	bLight = false,
 	bModulateMaterialColor = false,
@@ -429,7 +554,7 @@ class "GeometryStruct" {
 			self.bTristrip = bExtract(self.flags,0) == 1
 			self.bPosition = bExtract(self.flags,1) == 1
 			self.bTextured = bExtract(self.flags,2) == 1
-			self.bPrelight = bExtract(self.flags,3) == 1
+			self.bVertexColor = bExtract(self.flags,3) == 1
 			self.bNormal = bExtract(self.flags,4) == 1
 			self.bLight = bExtract(self.flags,5) == 1
 			self.bModulateMaterialColor = bExtract(self.flags,6) == 1
@@ -442,11 +567,11 @@ class "GeometryStruct" {
 			self.morphTargetCount = readStream:read(uint32)
 			
 			if not self.bNative then
-				if self.bPrelight then
+				if self.bVertexColor then
 					--R,G,B,A
-					self.preLightColor = {}
+					self.vertexColor = {}
 					for vertices=1, self.vertexCount do
-						self.preLightColor[vertices] = {readStream:read(uint8),readStream:read(uint8),readStream:read(uint8),readStream:read(uint8)}
+						self.vertexColor[vertices] = {readStream:read(uint8),readStream:read(uint8),readStream:read(uint8),readStream:read(uint8)}
 					end
 				end
 				self.texCoords = {}
@@ -488,13 +613,13 @@ class "GeometryStruct" {
 			writeStream:write(self.vertexCount,uint32)
 			writeStream:write(self.morphTargetCount,uint32)
 			if not self.bNative then
-				if self.bPrelight then
+				if self.bVertexColor then
 					--R,G,B,A
 					for vertices=1, self.vertexCount do
-						writeStream:write(self.preLightColor[vertices][1],uint8)
-						writeStream:write(self.preLightColor[vertices][2],uint8)
-						writeStream:write(self.preLightColor[vertices][3],uint8)
-						writeStream:write(self.preLightColor[vertices][4],uint8)
+						writeStream:write(self.vertexColor[vertices][1],uint8)
+						writeStream:write(self.vertexColor[vertices][2],uint8)
+						writeStream:write(self.vertexColor[vertices][3],uint8)
+						writeStream:write(self.vertexColor[vertices][4],uint8)
 					end
 				end
 				for i=1,(self.TextureCount ~= 0 and self.TextureCount or ((self.bTextured and 1 or 0)+(self.bTextured2 and 1 or 0)) ) do
@@ -539,7 +664,7 @@ class "GeometryStruct" {
 		getSize = function(self)
 			local size = 4*4
 			if not self.bNative then
-				if self.bPrelight then
+				if self.bVertexColor then
 					size = size+3*1*self.vertexCount
 				end
 				for i=1,(self.TextureCount ~= 0 and self.TextureCount or ((self.bTextured and 1 or 0)+(self.bTextured2 and 1 or 0)) ) do
@@ -573,7 +698,7 @@ class "Geometry" {	typeID = 0x0F,
 	bTristrip = false,
 	bPosition = false,
 	bTextured = false,
-	bPrelight = false,
+	bVertexColor = false,
 	bNormal = false,
 	bLight = false,
 	bModulateMaterialColor = false,
@@ -595,7 +720,7 @@ class "Geometry" {	typeID = 0x0F,
 			self.bTristrip = self.struct.bTristrip
 			self.bPosition = self.struct.bPosition
 			self.bTextured = self.struct.bTextured
-			self.bPrelight = self.struct.bPrelight
+			self.bVertexColor = self.struct.bVertexColor
 			self.bNormal = self.struct.bNormal
 			self.bLight = self.struct.bLight
 			self.bModulateMaterialColor = self.struct.bModulateMaterialColor
@@ -611,6 +736,85 @@ class "Geometry" {	typeID = 0x0F,
 		end,
 		getSize = function(self)
 			return self.struct:getSize()+self.materialList:getSize()+self.extension:getSize()
+		end,
+	}
+}
+
+class "GeometryExtension" {
+	extend = "Extension",
+	binMeshPLG = false,
+	breakable = false,
+	nightVertexColor = false,
+	effect2D = false,
+	methodContinue = {
+		read = function(self,readStream)
+			local nextSection
+			local readSize = 0
+			repeat
+				nextSection = Section()
+				nextSection:read(readStream)
+				if nextSection.type == BinMeshPLG.typeID then
+					recastClass(nextSection,BinMeshPLG)
+					self.binMeshPLG = nextSection
+				elseif nextSection.type == Breakable.typeID then
+					recastClass(nextSection,Breakable)
+					self.breakable = nextSection
+				elseif nextSection.type == NightVertexColor.typeID then
+					recastClass(nextSection,NightVertexColor)
+					self.nightVertexColor = nextSection
+				elseif nextSection.type == Effect2D.typeID then
+					recastClass(nextSection,Effect2D)
+					self.effect2D = nextSection
+				else
+					error("Unsupported Geometry Plugin "..nextSection.type)
+				end
+				nextSection:read(readStream)
+				readSize = readSize+nextSection.size+12
+			until readSize >= self.size
+		end,
+		write = function(self,writeStream)
+			if self.binMeshPLG then
+				self.binMeshPLG:write(writeStream)
+			end
+			if self.breakable then
+				self.breakable:write(writeStream)
+			end
+			if self.nightVertexColor then
+				self.nightVertexColor:write(writeStream)
+			end
+			if self.effect2D then
+				self.effect2D:write(writeStream)
+			end
+		end,
+		getSize = function(self)
+			return self.binMeshPLG:getSize()+self.breakable:getSize()
+		end,
+	}
+}
+
+class "NightVertexColor" {	typeID = 0x253F2F9,
+	extend = "Section",
+	hasColor = false,
+	colors = false,
+	methodContinue = {
+		read = function(self,readStream)
+			self.hasColor = readStream:read(uint32)
+			self.colors = {}
+			for i=1,(self.size-4)/4 do
+				self.colors[i] = {readStream:read(uint8),readStream:read(uint8),readStream:read(uint8),readStream:read(uint8)}
+			end
+		end,
+		write = function(self,writeStream)
+			writeStream:write(self.hasColor,uint32)
+			for i=1,#self.colors do
+				writeStream:write(self.colors[i][1],uint8)
+				writeStream:write(self.colors[i][2],uint8)
+				writeStream:write(self.colors[i][3],uint8)
+				writeStream:write(self.colors[i][4],uint8)
+			end
+		end,
+		getSize = function(self)
+			return 4*#self.colors
 		end,
 	}
 }
@@ -636,27 +840,6 @@ class "MaterialListStruct" {
 		end,
 		getSize = function(self)
 			return 4+4*self.materialCount
-		end,
-	}
-}
-
-class "GeometryExtension" {
-	extend = "Extension",
-	binMeshPLG = false,
-	breakable = false,
-	methodContinue = {
-		read = function(self,readStream)
-			self.binMeshPLG = BinMeshPLG()
-			self.binMeshPLG:read(readStream)
-			self.breakable = Breakable()
-			self.breakable:read(readStream)
-		end,
-		write = function(self,writeStream)
-			self.binMeshPLG:write(writeStream)
-			self.breakable:write(writeStream)
-		end,
-		getSize = function(self)
-			return self.binMeshPLG:getSize()+self.breakable:getSize()
 		end,
 	}
 }
@@ -997,16 +1180,148 @@ class "BinMeshPLG" {	typeID = 0x50E,
 class "Breakable" {	typeID = 0x0253F2FD,
 	extend = "Section",
 	flags = false,
+	positionRule = false,
+	vertexCount = false,
+	offsetVerteices = false,		--Unused
+	offsetCoords = false,			--Unused
+	offsetVetrexColor = false,		--Unused
+	triangleCount = false,
+	offsetVertexIndices = false,	--Unused
+	offsetMaterialIndices = false,	--Unused
+	materialCount = false,
+	offsetTextures = false,			--Unused
+	offsetTextureNames = false,		--Unused
+	offsetTextureMasks = false,		--Unused
+	offsetAmbientColors = false,	--Unused
+	
+	vertices = false,
+	triangles = false,
+	texCoords = false,
+	triangleMaterials = false,
+	materialTextureNames = false,
+	materialTextureMasks = false,
+	materialAmbientColor = false,
+
 	methodContinue = {
 		read = function(self,readStream)
 			self.flags = readStream:read(uint32)
-			if self.flags ~= 0 then print("Bad flags @Breakable, 'breakable' object is not implemented") end
+			if self.flags ~= 0 then
+				self.positionRule = readStream:read(uint32)
+				self.vertexCount = readStream:read(uint32)
+				self.offsetVerteices = readStream:read(uint32)			--Unused
+				self.offsetCoords = readStream:read(uint32)				--Unused
+				self.offsetVetrexLight = readStream:read(uint32)	--Unused
+				self.triangleCount = readStream:read(uint32)
+				self.offsetVertexIndices = readStream:read(uint32)		--Unused
+				self.offsetMaterialIndices = readStream:read(uint32)	--Unused
+				self.materialCount = readStream:read(uint32)
+				self.offsetTextures = readStream:read(uint32)			--Unused
+				self.offsetTextureNames = readStream:read(uint32)		--Unused
+				self.offsetTextureMasks = readStream:read(uint32)		--Unused
+				self.offsetAmbientColors = readStream:read(uint32)		--Unused
+				
+				self.vertices = {}
+				for i=1,self.vertexCount do
+					--x,y,z
+					self.vertices[i] = {readStream:read(float),readStream:read(float),readStream:read(float)}
+				end
+				self.texCoords = {}
+				for i=1,self.vertexCount do
+					--u,v
+					self.texCoords[i] = {readStream:read(float),readStream:read(float)}
+				end
+				self.vertexColor = {}
+				for i=1,self.vertexCount do
+					--r,g,b,a
+					self.vertexColor[i] = {readStream:read(uint8),readStream:read(uint8),readStream:read(uint8),readStream:read(uint8)}
+				end
+				self.triangles = {}
+				for i=1,self.triangleCount do
+					self.triangles[i] = {readStream:read(uint16),readStream:read(uint16),readStream:read(uint16)}
+				end
+				self.tiangleMaterials = {}
+				for i=1,self.triangleCount do
+					self.tiangleMaterials[i] = readStream:read(uint16)
+				end
+				self.materialTextureNames = {}
+				for i=1,self.materialCount do
+					self.materialTextureNames[i] = readStream:read(char,32)
+				end
+				self.materialTextureMasks = {}
+				for i=1,self.materialCount do
+					self.materialTextureMasks[i] = readStream:read(char,32)
+				end
+				self.ambientColor = {}
+				for i=1,self.materialCount do
+					self.ambientColor[i] = {readStream:read(float),readStream:read(float),readStream:read(float)}
+				end
+			end
 		end,
 		write = function(self,writeStream)
+				local p =writeStream.writingPos
+				print(writeStream.writingPos,self.size)
 			writeStream:write(self.flags,uint32)
+			if self.flags ~= 0 then
+				writeStream:write(self.positionRule,uint32)
+				writeStream:write(self.vertexCount,uint32)
+				writeStream:write(self.offsetVerteices,uint32)
+				writeStream:write(self.offsetCoords,uint32)
+				writeStream:write(self.offsetVetrexLight,uint32)
+				writeStream:write(self.triangleCount,uint32)
+				writeStream:write(self.offsetVertexIndices,uint32)
+				writeStream:write(self.offsetMaterialIndices,uint32)
+				writeStream:write(self.materialCount,uint32)
+				writeStream:write(self.offsetTextures,uint32)
+				writeStream:write(self.offsetTextureNames,uint32)
+				writeStream:write(self.offsetTextureMasks,uint32)
+				writeStream:write(self.offsetAmbientColors,uint32)
+				
+				for i=1,self.vertexCount do
+					--x,y,z
+					writeStream:write(self.vertices[i][1],float)
+					writeStream:write(self.vertices[i][2],float)
+					writeStream:write(self.vertices[i][3],float)
+				end
+				for i=1,self.vertexCount do
+					--u,v
+					writeStream:write(self.texCoords[i][1],float)
+					writeStream:write(self.texCoords[i][2],float)
+				end
+				for i=1,self.vertexCount do
+					--r,g,b,a
+					writeStream:write(self.vertexColor[i][1],uint8)
+					writeStream:write(self.vertexColor[i][2],uint8)
+					writeStream:write(self.vertexColor[i][1],uint8)
+					writeStream:write(self.vertexColor[i][2],uint8)
+				end
+				for i=1,self.triangleCount do
+					writeStream:write(self.triangles[i][1],uint16)
+					writeStream:write(self.triangles[i][2],uint16)
+					writeStream:write(self.triangles[i][3],uint16)
+				end
+				for i=1,self.triangleCount do
+					writeStream:write(self.tiangleMaterials[i],uint16)
+				end
+				for i=1,self.materialCount do
+					writeStream:write(self.materialTextureNames[i],char,32)
+				end
+				for i=1,self.materialCount do
+					writeStream:write(self.materialTextureMasks[i],char,32)
+				end
+				for i=1,self.materialCount do	--Normalized to [0,1]
+					writeStream:write(self.ambientColor[i][1],float)
+					writeStream:write(self.ambientColor[i][2],float)
+					writeStream:write(self.ambientColor[i][3],float)
+				end
+				print(writeStream.writingPos-p)
+			end
 		end,
 		getSize = function(self)
-			return 4
+			if self.flags == 0 then
+				return 4
+			else
+				return 14*4+self.vertexCount*8*4+self.materialCount*32*2+self.materialCount*3*4
+			end
 		end,
 	}
 }
@@ -1263,11 +1578,16 @@ class "DFFIO" {
 		self.clump:read(self.readStream)
 	end,
 	save = function(self,fileName)
-		if fileExists(fileName) then fileDelete(fileName) end
 		self.writeStream = WriteStream()
 		self.clump:write(self.writeStream)
-		local f = fileCreate(fileName)
-		fileWrite(f,self.writeStream:save())
-		fileClose(f)
+		local str = self.writeStream:save()
+		if fileName then
+			if fileExists(fileName) then fileDelete(fileName) end
+			local f = fileCreate(fileName)
+			fileWrite(f,str)
+			fileClose(f)
+			return true
+		end
+		return str
 	end,
 }

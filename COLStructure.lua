@@ -1,8 +1,8 @@
 
 class "COLIO" {	
-	collision = false,
-	readStream = false,
-	writeStream = false,
+	collision = nil,
+	readStream = nil,
+	writeStream = nil,
 	load = function(self,pathOrRaw)
 		if fileExists(pathOrRaw) then
 			local f = fileOpen(pathOrRaw)
@@ -29,45 +29,45 @@ class "COLIO" {
 }
 
 class "Collision" {	--Only support COL1/2/3
-	version = false,	--FourCC ( COLL/COL2/COL3 )
-	size = false,
-	modelName = false,
-	modelID = false,
-	bound = false,
-	vertexCount = false,
-	sphereCount = false,
-	boxCount = false,
-	faceGroupCount = false,
-	faceCount = false,
-	lineCount = false,	--Unused
-	trianglePlaneCount = false,	--Unused
-	flags = false,
-	offsetSphere = false,
-	offsetBox = false,
-	offsetLine = false,	--Unused
-	offsetFaceGroup = false,
-	offsetVertex = false,
-	offsetFace = false,
-	offsetTrianglePlane = false,	--Unused
+	version = nil,	--FourCC ( COLL/COL2/COL3 )
+	size = nil,
+	modelName = nil,
+	modelID = nil,
+	bound = nil,
+	vertexCount = nil,
+	sphereCount = nil,
+	boxCount = nil,
+	faceGroupCount = nil,
+	faceCount = nil,
+	lineCount = nil,	--Unused
+	trianglePlaneCount = nil,	--Unused
+	flags = nil,
+	offsetSphere = nil,
+	offsetBox = nil,
+	offsetLine = nil,	--Unused
+	offsetFaceGroup = nil,
+	offsetVertex = nil,
+	offsetFace = nil,
+	offsetTrianglePlane = nil,	--Unused
 	--Casted From flags
-	useConeInsteadOfLine = false,
-	notEmpty = false,
-	hasFaceGroup = false,
-	hasShadow = false,
+	useConeInsteadOfLine = nil,
+	notEmpty = nil,
+	hasFaceGroup = nil,
+	hasShadow = nil,
 	--
 	--Collision Version >= 3
-	shadowFaceCount = false,
-	shadowVertexCount = false,
-	offsetShadowVertex = false,
-	offsetShadowFace = false,
+	shadowFaceCount = nil,
+	shadowVertexCount = nil,
+	offsetShadowVertex = nil,
+	offsetShadowFace = nil,
 	--
-	spheres = false,
-	boxes = false,
-	vertices = false,
-	faces = false,
-	faceGroups = false,
-	shadowFaces = false,
-	shadowVertices = false,
+	spheres = nil,
+	boxes = nil,
+	vertices = nil,
+	faces = nil,
+	faceGroups = nil,
+	shadowFaces = nil,
+	shadowVertices = nil,
 	read = function(self,readStream)
 		self.version = readStream:read(char,4)
 		self.size = readStream:read(uint32)
@@ -219,7 +219,7 @@ class "Collision" {	--Only support COL1/2/3
 			--Sphere Start
 			--Write Spheres
 			if self.sphereCount ~= 0 then
-				self.offsetSphere = writeStream.writingPos-4
+				self.offsetSphere = writeStream.writingPos-4-1
 				writeStream:rewrite(pOffsetSphere,self.offsetSphere,uint32)
 				for i=1,self.sphereCount do
 					self.spheres[i]:write(writeStream,self.version)
@@ -227,7 +227,7 @@ class "Collision" {	--Only support COL1/2/3
 			end
 			--Write Boxes
 			if self.boxCount ~= 0 then
-				self.offsetBox = writeStream.writingPos-4
+				self.offsetBox = writeStream.writingPos-4-1
 				writeStream:rewrite(pOffsetBox,self.offsetBox,uint32)
 				for i=1,self.boxCount do
 					self.boxes[i]:write(writeStream)
@@ -235,7 +235,7 @@ class "Collision" {	--Only support COL1/2/3
 			end
 			--Write Vertices
 			if self.vertexCount ~= 0 then
-				self.offsetVertex = writeStream.writingPos-4
+				self.offsetVertex = writeStream.writingPos-4-1
 				writeStream:rewrite(pOffsetVertex,self.offsetVertex,uint32)
 				for i=1,self.vertexCount do
 					self.vertices[i]:write(writeStream,self.version)
@@ -253,7 +253,7 @@ class "Collision" {	--Only support COL1/2/3
 			end
 			--Write Faces
 			if self.faceCount ~= 0 then
-				self.offsetFace = writeStream.writingPos-4
+				self.offsetFace = writeStream.writingPos-4-1
 				writeStream:rewrite(pOffsetFace,self.offsetFace,uint32)
 				for i=1,self.faceCount do
 					self.faces[i]:write(writeStream,self.version)
@@ -262,7 +262,7 @@ class "Collision" {	--Only support COL1/2/3
 			if self.version == "COL3" and self.hasShadow then
 				--Write Shadow Vertices
 				if self.shadowVertexCount ~= 0 then
-					self.offsetShadowVertex = writeStream.writingPos-4
+					self.offsetShadowVertex = writeStream.writingPos-4-1
 					writeStream:rewrite(pOffsetShadowVertex,self.offsetShadowVertex,uint32)
 					for i=1,self.shadowVertexCount do
 						self.shadowVertices[i]:write(writeStream,self.version)
@@ -273,7 +273,7 @@ class "Collision" {	--Only support COL1/2/3
 				end
 				--Write Shadow Faces
 				if self.shadowFaceCount ~= 0 then
-					self.offsetShadowFace = writeStream.writingPos-4
+					self.offsetShadowFace = writeStream.writingPos-4-1
 					writeStream:rewrite(pOffsetShadowFace,self.offsetShadowFace,uint32)
 					for i=1,self.shadowFaceCount do
 						self.shadowFaces[i]:write(writeStream,self.version)
@@ -307,10 +307,10 @@ class "Collision" {	--Only support COL1/2/3
 }
 
 class "TBounds" {
-	radius = false,
-	center = false,
-	min = false,
-	max = false,
+	radius = nil,
+	center = nil,
+	min = nil,
+	max = nil,
 	read = function(self,readStream,version)
 		version = version or "COLL"
 		if version == "COLL" then
@@ -357,9 +357,9 @@ class "TBounds" {
 }
 
 class "TBox" {
-	min = false,
-	max = false,
-	surface = false,
+	min = nil,
+	max = nil,
+	surface = nil,
 	read = function(self,readStream)
 		self.min = {readStream:read(float),readStream:read(float),readStream:read(float)}
 		self.max = {readStream:read(float),readStream:read(float),readStream:read(float)}
@@ -381,10 +381,10 @@ class "TBox" {
 }
 
 class "TSurface" {
-	material = false,
-	flags = false,
-	brightness = false,
-	light = false,
+	material = nil,
+	flags = nil,
+	brightness = nil,
+	light = nil,
 	read = function(self,readStream)
 		self.material = readStream:read(uint8)
 		self.flags = readStream:read(uint8)
@@ -403,9 +403,9 @@ class "TSurface" {
 }
 
 class "TSphere" {
-	radius = false,
-	center = false,
-	surface = false,
+	radius = nil,
+	center = nil,
+	surface = nil,
 	read = function(self,readStream,version)
 		version = version or "COLL"
 		if version == "COLL" then
@@ -439,9 +439,9 @@ class "TSphere" {
 }
 
 class "TVertex" {
-	false,
-	false,
-	false,
+	nil,
+	nil,
+	nil,
 	read = function(self,readStream,version)
 		version = version or "COLL"
 		if version == "COLL" then
@@ -469,15 +469,15 @@ class "TVertex" {
 }
 
 class "TFace" {
-	a = false,
-	b = false,
-	c = false,
+	a = nil,
+	b = nil,
+	c = nil,
 	--COLL
-	surface = false,
+	surface = nil,
 	--
 	--COL2/3
-	material = false,
-	light = false,
+	material = nil,
+	light = nil,
 	read = function(self,readStream,version)
 		version = version or "COLL"
 		if version == "COLL" then
@@ -532,10 +532,10 @@ class "TFace" {
 }
 
 class "FaceGroup" {
-	min = false,
-	max = false,
-	startFace = false,
-	endFace = false,
+	min = nil,
+	max = nil,
+	startFace = nil,
+	endFace = nil,
 	read = function(self,readStream,version)
 		version = version or "COLL"
 		if version ~= "COLL" then
