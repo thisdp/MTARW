@@ -910,9 +910,9 @@ class "MaterialStruct" {
 			writeStream:write(self.color[4],uint8)
 			writeStream:write(self.unused,uint32)
 			writeStream:write(self.isTextured and 1 or 0,uint32)
-			writeStream:write(self.ambient,float)
-			writeStream:write(self.specular,float)
-			writeStream:write(self.diffuse,float)
+			writeStream:write(self.ambient,uint32)
+			writeStream:write(self.specular,uint32)
+			writeStream:write(self.diffuse,uint32)
 		end,
 		getSize = function(self)
 			return 28	-- 4+1*4+4+4+4*3
@@ -1258,8 +1258,6 @@ class "Breakable" {	typeID = 0x0253F2FD,
 			end
 		end,
 		write = function(self,writeStream)
-				local p =writeStream.writingPos
-				print(writeStream.writingPos,self.size)
 			writeStream:write(self.flags,uint32)
 			if self.flags ~= 0 then
 				writeStream:write(self.positionRule,uint32)
@@ -1291,8 +1289,8 @@ class "Breakable" {	typeID = 0x0253F2FD,
 					--r,g,b,a
 					writeStream:write(self.vertexColor[i][1],uint8)
 					writeStream:write(self.vertexColor[i][2],uint8)
-					writeStream:write(self.vertexColor[i][1],uint8)
-					writeStream:write(self.vertexColor[i][2],uint8)
+					writeStream:write(self.vertexColor[i][3],uint8)
+					writeStream:write(self.vertexColor[i][4],uint8)
 				end
 				for i=1,self.triangleCount do
 					writeStream:write(self.triangles[i][1],uint16)
@@ -1313,7 +1311,6 @@ class "Breakable" {	typeID = 0x0253F2FD,
 					writeStream:write(self.ambientColor[i][2],float)
 					writeStream:write(self.ambientColor[i][3],float)
 				end
-				print(writeStream.writingPos-p)
 			end
 		end,
 		getSize = function(self)
