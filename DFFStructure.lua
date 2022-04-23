@@ -163,9 +163,26 @@ class "Clump" {	typeID = 0x10,
 	frameList = false,
 	geometryList = false,
 	atomics = false,
-	extension = false,
 	indexStructs = false,
 	lights = false,
+	extension = false,
+	init = function(self,version)
+		self.struct = ClumpStruct()
+		self.struct:init(version)
+		self.frameList = FrameList()
+		self.frameList:init(version)
+		self.geometryList = GeometryList()
+		self.geometryList:init(version)
+		self.extension = Extension()
+		self.extension:init(version)
+		
+		self.atomics = {}
+		self.indexStructs = {}
+		self.lights = {}
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = Clump.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = ClumpStruct()
@@ -313,6 +330,11 @@ class "Light" {	typeID = 0x12,
 class "ClumpExtension" {
 	extend = "Extension",
 	collisionSection = false,
+	init = function(self,version)
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = ClumpExtension.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			if self.size > 0 then
@@ -339,6 +361,14 @@ class "ClumpStruct" {
 	atomicCount = false,
 	lightCount = false,
 	cameraCount = false,
+	init = function(self,version)
+		self.atomicCount = 0
+		self.lightCount = 0
+		self.cameraCount = 0
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = ClumpStruct.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.atomicCount = readStream:read(int32)
@@ -356,10 +386,17 @@ class "ClumpStruct" {
 	}
 }
 
-class "FrameStruct" {
+class "FrameListStruct" {
 	extend = "Struct",
 	frameCount = false,
 	frameInfo = false,
+	init = function(self,version)
+		self.frameCount = 0
+		self.frameInfo = {}
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = FrameListStruct.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.frameCount = readStream:read(uint32)
@@ -402,6 +439,12 @@ class "FrameStruct" {
 class "Frame" {	typeID = 0x253F2FE,
 	extend = "Section",
 	frameName = false,
+	init = function(self,version)
+		self.frameName = ""
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = Frame.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.frameName = readStream:read(char,self.size)
@@ -418,6 +461,13 @@ class "Frame" {	typeID = 0x253F2FE,
 class "FrameExtension" {
 	extend = "Extension",
 	frame = false,
+	init = function(self,version)
+		self.frame = Frame()
+		self.frame:init(version)
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = FrameExtension.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.frame = Frame()
@@ -435,26 +485,25 @@ class "FrameExtension" {
 class "FrameList" {	typeID = 0x0E,
 	extend = "Section",
 	struct = false,
-	extension = false,
 	frames = {},
-	--Casted From Struct (Read Only)
-	frameCount = false,
-	frameInfo = false,
-	--
+	init = function(self,version)
+		self.struct = FrameListStruct()
+		self.struct:init(version)
+		self.frames = {}
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = FrameList.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			--Read Struct
-			self.struct = FrameStruct()
+			self.struct = FrameListStruct()
 			self.struct:read(readStream)
 			--Read Frames
 			for i=1,self.struct.frameCount do
 				self.frames[i] = FrameExtension()
 				self.frames[i]:read(readStream)
 			end
-			--Casted From Struct (Read Only)
-			self.frameCount = self.struct.frameCount
-			self.frameInfo = self.struct.frameInfo
-			--
 		end,
 		write = function(self,writeStream)
 			self.struct:write(writeStream)
@@ -474,6 +523,12 @@ class "FrameList" {	typeID = 0x0E,
 
 class "GeometryListStruct" {
 	extend = "Struct",
+	init = function(self,version)
+		self.geometryCount = 0
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = GeometryListStruct.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.geometryCount = readStream:read(uint32)
@@ -490,8 +545,15 @@ class "GeometryListStruct" {
 class "GeometryList" {	typeID = 0x1A,
 	extend = "Section",
 	struct = false,
-	geometryCount = false,
 	geometries = false,
+	init = function(self,version)
+		self.struct = GeometryListStruct()
+		self.struct:init(version)
+		self.geometries = {}
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = GeometryList.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = GeometryListStruct()
@@ -547,6 +609,15 @@ class "GeometryStruct" {
 	bNative = false,
 	TextureCount = false,
 	--
+	init = function(self,version)
+		self.flags = 0
+		self.trangleCount = 0
+		self.vertexCount = 0
+		self.morphTargetCount = 0
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = GeometryStruct.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.flags = readStream:read(uint32)
@@ -690,21 +761,20 @@ class "GeometryStruct" {
 
 class "Geometry" {	typeID = 0x0F,
 	extend = "Section",
-	--Material List
+	struct = false,
 	materialList = false,
 	extension = false,
-	--Flags Casted From Struct (Read Only)
-	flags = false,
-	bTristrip = false,
-	bPosition = false,
-	bTextured = false,
-	bVertexColor = false,
-	bNormal = false,
-	bLight = false,
-	bModulateMaterialColor = false,
-	bTextured2 = false,
-	bNative = false,
-	--
+	init = function(self,version)
+		self.struct = GeometryStruct()
+		self.struct:init(version)
+		self.materialList = MaterialList()
+		self.materialList:init(version)
+		self.extension = GeometryExtension()
+		self.extension:init()
+		self.size = self:getSize(version)
+		self.version = version
+		self.type = Geometry.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = GeometryStruct()
@@ -715,19 +785,6 @@ class "Geometry" {	typeID = 0x0F,
 			--Read Extension
 			self.extension = GeometryExtension()
 			self.extension:read(readStream)
-			--Cast From Struct (Read Only)
-			self.flags = self.struct.geometryCount
-			self.bTristrip = self.struct.bTristrip
-			self.bPosition = self.struct.bPosition
-			self.bTextured = self.struct.bTextured
-			self.bVertexColor = self.struct.bVertexColor
-			self.bNormal = self.struct.bNormal
-			self.bLight = self.struct.bLight
-			self.bModulateMaterialColor = self.struct.bModulateMaterialColor
-			self.bTextured2 = self.struct.bTextured2
-			self.bNative = self.struct.bNative
-			self.TextureCount = self.struct.TextureCount
-			--
 		end,
 		write = function(self,writeStream)
 			self.struct:write(writeStream)
@@ -746,6 +803,11 @@ class "GeometryExtension" {
 	breakable = false,
 	nightVertexColor = false,
 	effect2D = false,
+	init = function(self,version)
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = GeometryExtension.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			local nextSection
@@ -823,6 +885,13 @@ class "MaterialListStruct" {
 	extend = "Struct",
 	materialCount = false,
 	materialIndices = false,
+	init = function(self,version)
+		self.materialCount = 0
+		self.materialIndices = {}
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = MaterialListStruct.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.materialCount = readStream:read(uint32)
@@ -848,9 +917,14 @@ class "MaterialList" {	typeID = 0x08,
 	extend = "Section",
 	struct = false,
 	materials = false,
-	--Cast From Struct (Read Only)
-	materialCount = false,
-	--
+	init = function(self,version)
+		self.struct = MaterialListStruct()
+		self.struct:init(version)
+		self.materials = {}
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = MaterialList.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			--Read Material List Struct
@@ -863,9 +937,6 @@ class "MaterialList" {	typeID = 0x08,
 				self.materials[matIndex] = Material()
 				self.materials[matIndex]:read(readStream)
 			end
-			--Cast From Struct (Read Only)
-			self.materialCount = self.struct.materialCount
-			--
 		end,
 		write = function(self,writeStream)
 			self.struct:write(writeStream)
@@ -892,15 +963,27 @@ class "MaterialStruct" {
 	ambient = false,
 	specular = false,
 	diffuse = false,
+	init = function(self,version)
+		self.flags = 0
+		self.color = {255,255,255,255}
+		self.unused = 0
+		self.isTextured = 0
+		self.ambient = 1
+		self.specular = 1
+		self.diffuse = 1
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = MaterialStruct.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.flags = readStream:read(uint32)
 			self.color = {readStream:read(uint8),readStream:read(uint8),readStream:read(uint8),readStream:read(uint8)}
 			self.unused = readStream:read(uint32)
 			self.isTextured = readStream:read(uint32) == 1
-			self.ambient = readStream:read(uint32)
-			self.specular = readStream:read(uint32)
-			self.diffuse = readStream:read(uint32)
+			self.ambient = readStream:read(float)
+			self.specular = readStream:read(float)
+			self.diffuse = readStream:read(float)
 		end,
 		write = function(self,writeStream)
 			writeStream:write(self.flags,uint32)
@@ -910,9 +993,9 @@ class "MaterialStruct" {
 			writeStream:write(self.color[4],uint8)
 			writeStream:write(self.unused,uint32)
 			writeStream:write(self.isTextured and 1 or 0,uint32)
-			writeStream:write(self.ambient,uint32)
-			writeStream:write(self.specular,uint32)
-			writeStream:write(self.diffuse,uint32)
+			writeStream:write(self.ambient,float)
+			writeStream:write(self.specular,float)
+			writeStream:write(self.diffuse,float)
 		end,
 		getSize = function(self)
 			return 28	-- 4+1*4+4+4+4*3
@@ -926,6 +1009,11 @@ class "MaterialExtension" {
 	reflectionMaterial = false,
 	specularMaterial = false,
 	uvAnimation = false,
+	init = function(self,version)
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = MaterialExtension.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			--Custom Section: Reflection Material
@@ -933,7 +1021,6 @@ class "MaterialExtension" {
 			while self.size > readSize do
 				local section = Section()
 				section:read(readStream)
-				--print("sec type1",self.size,readSize,string.format("%02x",section.type),readStream.readingPos)
 				if section.type == ReflectionMaterial.typeID then
 					recastClass(section,ReflectionMaterial)
 					self.reflectionMaterial = section
@@ -952,7 +1039,6 @@ class "MaterialExtension" {
 					section:read(readStream)
 				end
 				readSize = readSize+section.size+12
-				--print("sec type2",self.size,readSize,string.format("%02x",section.type),readStream.readingPos)
 			end
 		end,
 		write = function(self,writeStream)
@@ -977,6 +1063,15 @@ class "Material" {	typeID = 0x07,
 	struct = false,
 	texture = false,
 	extension = false,
+	init = function(self,ver)
+		self.struct = MaterialStruct()
+		self.struct:init(version)
+		self.extension = MaterialExtension()
+		self.extension:init(version)
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = Material.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			--Read Material Struct
@@ -1063,6 +1158,12 @@ class "TextureStruct" {
 	VAddressing = false,
 	hasMipmaps = false,
 	--
+	init = function(self,ver)
+		self.flags = 0
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = TextureStruct.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.flags = readStream:read(uint32)
@@ -1088,6 +1189,19 @@ class "Texture" {	typeID = 0x06,
 	textureName = false,
 	maskName = false,
 	extension = false,
+	init = function(self,ver)
+		self.struct = TextureStruct()
+		self.struct:init(version)
+		self.textureName = String()
+		self.textureName:init(version)
+		self.maskName = String()
+		self.maskName:init(version)
+		self.extension = Extension()
+		self.extension:init(version)
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = Texture.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			--Read Texture Struct
@@ -1118,6 +1232,12 @@ class "Texture" {	typeID = 0x06,
 class "String" {	typeID = 0x02,
 	extend = "Section",
 	string = false,
+	init = function(self,ver)
+		self.string = ""
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = String.typeID
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.string = readStream:read(char,self.size)
@@ -1553,6 +1673,7 @@ class "DFFIO" {
 	clump = false,
 	readStream = false,
 	writeStream = false,
+	version = false,
 	load = function(self,pathOrRaw)
 		if fileExists(pathOrRaw) then
 			local f = fileOpen(pathOrRaw)
@@ -1564,6 +1685,7 @@ class "DFFIO" {
 		self.readStream = ReadStream(pathOrRaw)
 		self.clump = Section()
 		self.clump:read(self.readStream)
+		self.version = self.clump.version
 		if self.clump.type == UVAnimDict.typeID then
 			recastClass(self.clump,UVAnimDict)
 			self.uvAnimDict = self.clump
@@ -1573,6 +1695,10 @@ class "DFFIO" {
 			recastClass(self.clump,Clump)
 		end
 		self.clump:read(self.readStream)
+	end,
+	new = function(self,version)
+		self.clump = Clump()
+		self.clump:init(version or 0x1803FFFF)
 	end,
 	save = function(self,fileName)
 		self.writeStream = WriteStream()

@@ -77,7 +77,8 @@ oopUtil = {
 		end
 	end,
 	spreadFunctionsForClass = function(class,classTemplate)
-		oopUtil.assimilate(class,classTemplate,{"expose","constructor"})
+		oopUtil.assimilate(class,classTemplate,{"expose","constructor","default"})
+		oopUtil.assimilate(class.default,classTemplate)
 	end,
 }
 
@@ -216,19 +217,37 @@ class "Section" {
 			local db = debug.getinfo(3)
 			print(db.source..":"..db.currentline..": Bad writeStream at @"..self.class)
 		end
+		if not tonumber(self.type) or not self.size or not self.version then
+			local db = debug.getinfo(3)
+			print(db.source..":"..db.currentline..": Bad data at @"..self.class)
+		end
 		writeStream:write(self.type,uint32)
 		writeStream:write(self.size,uint32)
 		writeStream:write(self.version,uint32)
 	end,
-	getSize = function(self)
-		return 12
+	getSize = function(self,excludeSection)
+		if excludeSection then
+			return 0
+		else
+			return 12
+		end
 	end,
 }
 
 class "Struct" { typeID = 0x01,
 	extend = "Section",
+	init = function(self,version)
+		self.size = 0
+		self.version = version
+		self.type = Struct.typeID
+	end,
 }
 
 class "Extension" { typeID = 0x03,
 	extend = "Section",
+	init = function(self,version)
+		self.size = 0
+		self.version = version
+		self.type = Extension.typeID
+	end,
 }

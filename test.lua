@@ -25,17 +25,16 @@ for i=60,1,-2 do
 end
 newBMP:save("a.bmp")]]
 
-local tick = getTickCount()
-local IMG = engineLoadIMGContainer("gta3.img")
-print("Load IMG",getTickCount()-tick)
-local tick = getTickCount()
-local dffFile = IMG:getFile("mlamppost.dff")
-print("Get DFF",getTickCount()-tick)
 local dff = DFFIO()
-local tick = getTickCount()
-dff:load(dffFile)
-dff.clump.geometryList.geometries[1].extension.effect2D.effects[1].color={0,0,255,255}
-local theDFF = engineLoadDFF(dff:save())
-engineReplaceModel(theDFF,1294)
-print("Load DFF",getTickCount()-tick)
+dff:new()
+dff:save("test.dff")
 
+--[[
+local IMG = engineLoadIMGContainer("gta3.img")
+local dffFile = IMG:getFile("mlamppost.dff")
+local dff = DFFIO()
+dff:load(dffFile)
+dff.clump.geometryList.geometries[1].extension.effect2D.effects[1].color={255,255,255,255}
+dff.clump.geometryList.geometries[1].extension.effect2D.effects[1].coronaShowMode=10
+local theDFF = engineLoadDFF(dff:save())
+engineReplaceModel(theDFF,1294)]]
