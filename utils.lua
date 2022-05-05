@@ -55,6 +55,40 @@ function table.inspect(theTable,appendTable,depth,arrayMark)
 	return tableConcat(appendTable)
 end
 
+
+function table.inspectToFile(file,theTable,appendTable,depth,arrayMark)
+	depth = depth or 0
+	local theType = type(theTable)
+	if theType == "table" then
+		if #theTable == table.count(theTable) then	--Array
+			for key,value in ipairs(theTable) do
+				local valueType = type(value)
+				if valueType ~= "function" and key ~= "parent" then
+					if valueType == "table" then
+						fileWrite(file,"\n",strRep("	",depth+1))
+					end
+					table.inspectToFile(file,value,appendTable,depth+1,true)
+				end
+			end
+		else
+			fileWrite(file,"\n")
+			for key,value in pairs(theTable) do
+				if type(value) ~= "function" and key ~= "parent"  then
+					fileWrite(file,strRep("	",depth+1),"[",tostring(key),"] = ")
+					table.inspectToFile(file,value,appendTable,depth+1)
+					fileWrite(file,"\n")
+				end
+			end
+			fileWrite(file,strRep("	",depth))
+		end
+	else
+		fileWrite(file,tostring(theTable))
+		if arrayMark then
+			fileWrite(file,",")
+		end
+	end
+end
+
 function table.deepcopy(obj)
     local InTable = {}
     local function Func(obj)
@@ -173,6 +207,10 @@ bytes = {type="bytes",name="bytes","bytes",-1}
 
 local numberWriter = {}
 function writeNumber(number,numberType)
+	if not number then
+		local db = debug.getinfo(3)
+		error(db.source..":"..db.currentline..": Bad argument @writeNumber at argument 1, expected a number got "..type(number))
+	end
 	local len = numberType[2]
 	if numberType[1] == "float" then
 		number = Float2Hex(number)

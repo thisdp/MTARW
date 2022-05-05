@@ -157,6 +157,37 @@ class "UVAnim" {	typeID = 0x1B,
 	}
 }
 
+class "ClumpStruct" {
+	extend = "Struct",
+	atomicCount = false,
+	lightCount = false,
+	cameraCount = false,
+	init = function(self,version)
+		self.atomicCount = 0
+		self.lightCount = 0
+		self.cameraCount = 0
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = ClumpStruct.typeID
+		return self
+	end,
+	methodContinue = {
+		read = function(self,readStream)
+			self.atomicCount = readStream:read(int32)
+			self.lightCount = readStream:read(int32)
+			self.cameraCount = readStream:read(int32)
+		end,
+		write = function(self,writeStream)
+			writeStream:write(self.atomicCount,int32)
+			writeStream:write(self.lightCount,int32)
+			writeStream:write(self.cameraCount,int32)
+		end,
+		getSize = function(self)
+			return 12
+		end,
+	}
+}
+
 class "Clump" {	typeID = 0x10,
 	extend = "Section",
 	struct = false,
@@ -167,21 +198,30 @@ class "Clump" {	typeID = 0x10,
 	lights = false,
 	extension = false,
 	init = function(self,version)
-		self.struct = ClumpStruct()
-		self.struct:init(version)
-		self.frameList = FrameList()
-		self.frameList:init(version)
-		self.geometryList = GeometryList()
-		self.geometryList:init(version)
-		self.extension = Extension()
-		self.extension:init(version)
-		
+		self.struct = ClumpStruct():init(version)
+		self.frameList = FrameList():init(version)
+		self.geometryList = GeometryList():init(version)
+		self.extension = Extension():init(version)
 		self.atomics = {}
 		self.indexStructs = {}
 		self.lights = {}
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = Clump.typeID
+		return self
+	end,
+	createAtomic = function(self)
+		local atomic = Atomic():init(self.version)
+		self.struct.atomicCount = self.struct.atomicCount+1
+		self.atomics[self.struct.atomicCount] = atomic
+		self.size = self:getSize(true)
+		return atomic
+	end,
+	addComponent = function(self)
+		self:createAtomic()
+		self.frameList:createFrame()
+		self.geometryList:createGeometry()
+		self.size = self:getSize(true)
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -217,7 +257,7 @@ class "Clump" {	typeID = 0x10,
 				end
 			until nextSection.type == ClumpExtension.typeID
 			--Read Extension
-			recastClass(nextSection,IndexStruct)
+			recastClass(nextSection,ClumpExtension)
 			self.extension = nextSection
 			self.extension:read(readStream)
 		end,
@@ -334,6 +374,7 @@ class "ClumpExtension" {
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = ClumpExtension.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -356,36 +397,6 @@ class "ClumpExtension" {
 	}
 }
 
-class "ClumpStruct" {
-	extend = "Struct",
-	atomicCount = false,
-	lightCount = false,
-	cameraCount = false,
-	init = function(self,version)
-		self.atomicCount = 0
-		self.lightCount = 0
-		self.cameraCount = 0
-		self.size = self:getSize(true)
-		self.version = version
-		self.type = ClumpStruct.typeID
-	end,
-	methodContinue = {
-		read = function(self,readStream)
-			self.atomicCount = readStream:read(int32)
-			self.lightCount = readStream:read(int32)
-			self.cameraCount = readStream:read(int32)
-		end,
-		write = function(self,writeStream)
-			writeStream:write(self.atomicCount,int32)
-			writeStream:write(self.lightCount,int32)
-			writeStream:write(self.cameraCount,int32)
-		end,
-		getSize = function(self)
-			return 12
-		end,
-	}
-}
-
 class "FrameListStruct" {
 	extend = "Struct",
 	frameCount = false,
@@ -396,6 +407,56 @@ class "FrameListStruct" {
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = FrameListStruct.typeID
+		return self
+	end,
+	createFrameInfo = function(self)
+		self.frameInfo[#self.frameInfo+1] = {
+			rotationMatrix = {	--By Default
+				{1,0,0},
+				{0,1,0},
+				{0,0,1},
+			},
+			positionVector = {0,0,0},
+			parentFrame = 0,	--Compatible to lua array
+			matrixFlags = 0x00020003,
+		}
+		self.size = self:getSize(true)
+		return #self.frameInfo
+	end,
+	setFrameInfoParentFrame = function(self,frameInfoID,parentFrameID)
+		if not self.frameInfo[frameInfoID] then error("Bad argument @setFrameInfoParentFrame, frame info index out of range, total "..#self.frameInfo.." got "..frameInfoID) end
+		self.frameInfo[frameInfoID].parentFrame = parentFrameID
+		return self
+	end,
+	setFrameInfoPosition = function(self,x,y,z)
+		if not self.frameInfo[frameInfoID] then error("Bad argument @setFrameInfoParentFrame, frame info index out of range, total "..#self.frameInfo.." got "..frameInfoID) end
+		self.frameInfo[frameInfoID].positionVector[1] = x
+		self.frameInfo[frameInfoID].positionVector[2] = y
+		self.frameInfo[frameInfoID].positionVector[3] = z
+		return self
+	end,
+	setFrameInfoRotation = function(self,rx,ry,rz)
+		if not self.frameInfo[frameInfoID] then error("Bad argument @setFrameInfoParentFrame, frame info index out of range, total "..#self.frameInfo.." got "..frameInfoID) end
+		local rotMatrix = self.frameInfo[frameInfoID].rotationMatrix
+		local rx = math.rad(rx)
+		local ry = math.rad(ry)
+		local rz = math.rad(rz)
+		local cX = math.cos(rx)
+		local sX = math.sin(rx)
+		local cY = math.cos(ry)
+		local sY = math.sin(ry)
+		local cZ = math.cos(rz)
+		local sZ = math.sin(rz)
+		rotMatrix[1][1] = cZ * cY - (sZ * sX) * sY
+		rotMatrix[1][2] = (cZ * sX) * sY + sZ * cY
+		rotMatrix[1][3] = -cX * sY
+		rotMatrix[2][1] = -sZ * cX
+		rotMatrix[2][2] = cZ * cX
+		rotMatrix[2][3] = sX
+		rotMatrix[3][1] = (sZ * sX) * cY + cZ * sY
+		rotMatrix[3][2] = sZ * sY - (cZ * sX) * cY
+		rotMatrix[3][3] = cX * cY
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -431,68 +492,32 @@ class "FrameListStruct" {
 			end
 		end,
 		getSize = function(self)
-			return 4+(9*4+3*4+4+4)*self.frameCount
+			return 4+(9*4+3*4+4+4)*#self.frameInfo
 		end,
 	}
-}
-
-class "Frame" {	typeID = 0x253F2FE,
-	extend = "Section",
-	frameName = false,
-	init = function(self,version)
-		self.frameName = ""
-		self.size = self:getSize(true)
-		self.version = version
-		self.type = Frame.typeID
-	end,
-	methodContinue = {
-		read = function(self,readStream)
-			self.frameName = readStream:read(char,self.size)
-		end,
-		write = function(self,writeStream)
-			writeStream:write(self.frameName,char,self.size)
-		end,
-		getSize = function(self)
-			return #self.frameName
-		end,
-	},
-}
-
-class "FrameExtension" {
-	extend = "Extension",
-	frame = false,
-	init = function(self,version)
-		self.frame = Frame()
-		self.frame:init(version)
-		self.size = self:getSize(true)
-		self.version = version
-		self.type = FrameExtension.typeID
-	end,
-	methodContinue = {
-		read = function(self,readStream)
-			self.frame = Frame()
-			self.frame:read(readStream)
-		end,
-		write = function(self,writeStream)
-			self.frame:write(writeStream)
-		end,
-		getSize = function(self)
-			return self.frame:getSize()
-		end,
-	},
 }
 
 class "FrameList" {	typeID = 0x0E,
 	extend = "Section",
 	struct = false,
-	frames = {},
+	frames = false,
 	init = function(self,version)
-		self.struct = FrameListStruct()
-		self.struct:init(version)
+		self.struct = FrameListStruct():init(version)
 		self.frames = {}
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = FrameList.typeID
+		return self
+	end,
+	createFrame = function(self,name)
+		local FrameListExtension = FrameListExtension():init(self.version)
+		FrameListExtension.frame:setName(name or "unnamed")
+		FrameListExtension:update()
+		self.struct:createFrameInfo()
+		self.struct.frameCount = self.struct.frameCount+1
+		self.frames[self.struct.frameCount] = FrameListExtension
+		self.size = self:getSize(true)
+		return FrameListExtension
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -500,8 +525,9 @@ class "FrameList" {	typeID = 0x0E,
 			self.struct = FrameListStruct()
 			self.struct:read(readStream)
 			--Read Frames
+			self.frames = {}
 			for i=1,self.struct.frameCount do
-				self.frames[i] = FrameExtension()
+				self.frames[i] = FrameListExtension()
 				self.frames[i]:read(readStream)
 			end
 		end,
@@ -521,6 +547,76 @@ class "FrameList" {	typeID = 0x0E,
 	}
 }
 
+class "FrameListExtension" {
+	extend = "Extension",
+	frame = false,
+	HAnimPLG = false,
+	init = function(self,version)
+		self.frame = Frame():init(version)
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = FrameListExtension.typeID
+		return self
+	end,
+	methodContinue = {
+		read = function(self,readStream)
+			if self.size ~= 0 then
+				local section = Section()
+				section:read(readStream)
+				if section.type == HAnimPLG.typeID then
+					recastClass(section,HAnimPLG)
+					self.HAnimPLG = section
+					self.HAnimPLG:read(readStream)
+					section = Section()
+				end
+				recastClass(section,Frame)
+				self.frame = section
+				self.frame:read(readStream)
+			end
+		end,
+		write = function(self,writeStream)
+			if self.HAnimPLG then
+				self.HAnimPLG:write(writeStream)
+			end
+			iprint(self.frame)
+			if self.frame then
+				self.frame:write(writeStream)
+			end
+		end,
+		getSize = function(self)
+			return self.frame:getSize()
+		end,
+	},
+}
+
+class "Frame" {	typeID = 0x253F2FE,
+	extend = "Section",
+	name = false,
+	init = function(self,version)
+		self.name = ""
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = Frame.typeID
+		return self
+	end,
+	setName = function(self,name)
+		self.name = name
+		self.size = self:getSize(true)
+		return self
+	end,
+	methodContinue = {
+		read = function(self,readStream)
+			self.name = readStream:read(char,self.size)
+		end,
+		write = function(self,writeStream)
+			writeStream:write(self.name,char,self.size)
+		end,
+		getSize = function(self)
+			return #self.name
+		end,
+	},
+}
+
 class "GeometryListStruct" {
 	extend = "Struct",
 	init = function(self,version)
@@ -528,6 +624,7 @@ class "GeometryListStruct" {
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = GeometryListStruct.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -547,12 +644,19 @@ class "GeometryList" {	typeID = 0x1A,
 	struct = false,
 	geometries = false,
 	init = function(self,version)
-		self.struct = GeometryListStruct()
-		self.struct:init(version)
+		self.struct = GeometryListStruct():init(version)
 		self.geometries = {}
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = GeometryList.typeID
+		return self
+	end,
+	createGeometry = function(self)
+		local geometry = Geometry():init(self.version)
+		self.struct.geometryCount = self.struct.geometryCount+1
+		self.geometries[self.struct.geometryCount] = geometry
+		self.size = self:getSize(true)
+		return geometry
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -611,12 +715,16 @@ class "GeometryStruct" {
 	--
 	init = function(self,version)
 		self.flags = 0
-		self.trangleCount = 0
+		self.triangleCount = 0
 		self.vertexCount = 0
-		self.morphTargetCount = 0
+		self.morphTargetCount = 1
+		self.boundingSphere = {0,0,0,0}
+		self.hasVertices = false
+		self.hasNormals = false
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = GeometryStruct.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -765,15 +873,13 @@ class "Geometry" {	typeID = 0x0F,
 	materialList = false,
 	extension = false,
 	init = function(self,version)
-		self.struct = GeometryStruct()
-		self.struct:init(version)
-		self.materialList = MaterialList()
-		self.materialList:init(version)
-		self.extension = GeometryExtension()
-		self.extension:init()
-		self.size = self:getSize(version)
+		self.struct = GeometryStruct():init(version)
+		self.materialList = MaterialList():init(version)
+		self.extension = GeometryExtension():init(version)
+		self.size = self:getSize(true)
 		self.version = version
 		self.type = Geometry.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -784,6 +890,7 @@ class "Geometry" {	typeID = 0x0F,
 			self.materialList:read(readStream)
 			--Read Extension
 			self.extension = GeometryExtension()
+			self.extension.parent = self
 			self.extension:read(readStream)
 		end,
 		write = function(self,writeStream)
@@ -803,10 +910,12 @@ class "GeometryExtension" {
 	breakable = false,
 	nightVertexColor = false,
 	effect2D = false,
+	skinPLG = false,
 	init = function(self,version)
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = GeometryExtension.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -827,9 +936,13 @@ class "GeometryExtension" {
 				elseif nextSection.type == Effect2D.typeID then
 					recastClass(nextSection,Effect2D)
 					self.effect2D = nextSection
+				elseif nextSection.type == SkinPLG.typeID then
+					recastClass(nextSection,SkinPLG)
+					self.skinPLG = nextSection
 				else
 					error("Unsupported Geometry Plugin "..nextSection.type)
 				end
+				nextSection.parent = self
 				nextSection:read(readStream)
 				readSize = readSize+nextSection.size+12
 			until readSize >= self.size
@@ -837,6 +950,9 @@ class "GeometryExtension" {
 		write = function(self,writeStream)
 			if self.binMeshPLG then
 				self.binMeshPLG:write(writeStream)
+			end
+			if self.skinPLG then
+				self.skinPLG:write(writeStream)
 			end
 			if self.breakable then
 				self.breakable:write(writeStream)
@@ -849,7 +965,20 @@ class "GeometryExtension" {
 			end
 		end,
 		getSize = function(self)
-			return self.binMeshPLG:getSize()+self.breakable:getSize()
+			local size = 0
+			if self.binMeshPLG then
+				size = size+self.binMeshPLG:getSize()
+			end
+			if self.breakable then
+				size = size+self.breakable:getSize()
+			end
+			if self.nightVertexColor then
+				size = size+self.nightVertexColor:getSize()
+			end
+			if self.effect2D then
+				size = size+self.effect2D:getSize()
+			end
+			return size
 		end,
 	}
 }
@@ -891,6 +1020,7 @@ class "MaterialListStruct" {
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = MaterialListStruct.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -918,12 +1048,12 @@ class "MaterialList" {	typeID = 0x08,
 	struct = false,
 	materials = false,
 	init = function(self,version)
-		self.struct = MaterialListStruct()
-		self.struct:init(version)
+		self.struct = MaterialListStruct():init(version)
 		self.materials = {}
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = MaterialList.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -974,6 +1104,7 @@ class "MaterialStruct" {
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = MaterialStruct.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -1013,6 +1144,7 @@ class "MaterialExtension" {
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = MaterialExtension.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -1064,10 +1196,8 @@ class "Material" {	typeID = 0x07,
 	texture = false,
 	extension = false,
 	init = function(self,ver)
-		self.struct = MaterialStruct()
-		self.struct:init(version)
-		self.extension = MaterialExtension()
-		self.extension:init(version)
+		self.struct = MaterialStruct():init(version)
+		self.extension = MaterialExtension():init(version)
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = Material.typeID
@@ -1190,14 +1320,10 @@ class "Texture" {	typeID = 0x06,
 	maskName = false,
 	extension = false,
 	init = function(self,ver)
-		self.struct = TextureStruct()
-		self.struct:init(version)
-		self.textureName = String()
-		self.textureName:init(version)
-		self.maskName = String()
-		self.maskName:init(version)
-		self.extension = Extension()
-		self.extension:init(version)
+		self.struct = TextureStruct():init(version)
+		self.textureName = String():init(version)
+		self.maskName = String():init(version)
+		self.extension = Extension():init(version)
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = Texture.typeID
@@ -1452,6 +1578,17 @@ class "AtomicStruct" {
 	--Casted From flags
 	atomicCollisionTest = false,	--Unused
 	atomicRender = false,			--The atomic is rendered if it is in the view frustum. It's set to TRUE for all models by default.
+	--
+	init = function(self,version)
+		self.frameIndex = 0
+		self.geometryIndex = 0
+		self.flags = 5
+		self.unused = 0
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = AtomicStruct.typeID
+		return self
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.frameIndex = readStream:read(uint32)
@@ -1466,7 +1603,7 @@ class "AtomicStruct" {
 			writeStream:write(self.unused,uint32)
 		end,
 		getSize = function(self)
-			return 4*4
+			return 16
 		end,
 	}
 }
@@ -1475,14 +1612,32 @@ class "AtomicExtension" {
 	extend = "Extension",
 	pipline = false,
 	materialEffect = false,
+	init = function(self,version)
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = AtomicExtension.typeID
+		return self
+	end,
 	methodContinue = {
 		read = function(self,readStream)
-			if self.size > 0 then
-				self.pipline = Pipline()
-				self.pipline:read(readStream)
-				self.materialEffect = MaterialEffectPLG()
-				self.materialEffect:read(readStream)
-			end
+			local nextSection
+			local readSize = 0
+			repeat
+				nextSection = Section()
+				nextSection:read(readStream)
+				if nextSection.type == Pipline.typeID then
+					recastClass(nextSection,Pipline)
+					self.pipline = nextSection
+				elseif nextSection.type == MaterialEffectPLG.typeID then
+					recastClass(nextSection,MaterialEffectPLG)
+					self.materialEffect = nextSection
+				else
+					error("Unsupported Automic Plugin "..nextSection.type)
+				end
+				nextSection.parent = self
+				nextSection:read(readStream)
+				readSize = readSize+nextSection.size+12
+			until readSize >= self.size
 		end,
 		write = function(self,writeStream)
 			if self.pipline then
@@ -1509,6 +1664,14 @@ class "Atomic" {	typeID = 0x14,
 	extend = "Section",
 	struct = false,
 	extension = false,
+	init = function(self,version)
+		self.struct = AtomicStruct():init(version)
+		self.extension = AtomicExtension():init(version)
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = Atomic.typeID
+		return self
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = AtomicStruct()
@@ -1652,6 +1815,164 @@ class "UVAnimPLG" {	typeID = 0x135,
 	}
 }
 
+class "HAnimPLG" {	typeID = 0x11E,
+	extend = "Section",
+	animVersion = 0x100,	--By Default
+	nodeID = false,
+	nodeCount = false,
+	flags = false,
+	keyFrameSize = 36,		--By Default
+	nodes = false,
+	methodContinue = {
+		read = function(self,readStream)
+			self.animVersion = readStream:read(uint32)
+			self.nodeID = readStream:read(uint32)
+			self.nodeCount = readStream:read(uint32)
+			if self.nodeCount ~= 0 then	--Root Bone
+				self.flags = readStream:read(uint32)
+				self.keyFrameSize = readStream:read(uint32)
+				self.nodes = {}
+				for i=1,self.nodeCount do
+					self.nodes[i] = {
+						nodeID = readStream:read(uint32),		--Identify
+						nodeIndex = readStream:read(uint32),	--Index in array
+						flags = readStream:read(uint32),
+					}
+				end
+			end
+		end,
+		write = function(self,writeStream)
+			writeStream:write(self.animVersion,uint32)
+			writeStream:write(self.nodeID,uint32)
+			writeStream:write(self.nodeCount,uint32)
+			if self.nodeCount ~= 0 then	--Root Bone
+				writeStream:write(self.flags,uint32)
+				writeStream:write(self.keyFrameSize,uint32)
+				for i=1,self.nodeCount do
+					writeStream:write(self.nodes[i].nodeID,uint32)
+					writeStream:write(self.nodes[i].nodeIndex,uint32)
+					writeStream:write(self.nodes[i].flags,uint32)
+				end
+			end
+		end,
+		getSize = function(self)
+			local size = 3*4
+			if self.nodeCount ~= 0 then	--Root Bone
+				size = size+8+self.nodeCount*4
+			end
+			return size
+		end,
+	}
+}
+
+class "SkinPLG" {	typeID = 0x116,
+	extend = "Section",
+	boneCount = false,
+	usedBoneCount = false,
+	maxVertexWeights = false,
+	usedBoneIndice = false,
+	boneVertices = false,
+	boneVertexWeights = false,
+	bones = false,
+	methodContinue = {
+		read = function(self,readStream)
+			self.boneCount = readStream:read(uint8)
+			self.usedBoneCount = readStream:read(uint8)
+			self.maxVertexWeights = readStream:read(uint8)
+			readStream:read(uint8)	--Padding
+			self.usedBoneIndice = {}
+			for i=1,self.usedBoneCount do
+				self.usedBoneIndice[i] = readStream:read(uint8)
+			end
+			self.boneVertices = {}
+			for i=1,self.parent.parent.struct.vertexCount do
+				self.boneVertices[i] = {readStream:read(uint8),readStream:read(uint8),readStream:read(uint8),readStream:read(uint8)}
+				
+			end
+			self.boneVertexWeights = {}
+			for i=1,self.parent.parent.struct.vertexCount do
+				self.boneVertexWeights[i] = {readStream:read(float),readStream:read(float),readStream:read(float),readStream:read(float)}
+			
+			end
+			self.bones = {}
+			for i=1,self.boneCount do
+				if self.version ~= 0x1803FFFF then
+					readStream:read(uint32)
+				end
+				self.bones[i] = {
+					{readStream:read(float),readStream:read(float),readStream:read(float),readStream:read(float)},
+					{readStream:read(float),readStream:read(float),readStream:read(float),readStream:read(float)},
+					{readStream:read(float),readStream:read(float),readStream:read(float),readStream:read(float)},
+					{readStream:read(float),readStream:read(float),readStream:read(float),readStream:read(float)},
+				}
+			end
+			if self.version == 0x1803FFFF then
+				readStream:read(uint32)	--unused
+				readStream:read(uint32)	--unused
+				readStream:read(uint32)	--unused
+			end
+		end,
+		write = function(self,writeStream)
+			writeStream:write(self.boneCount,uint8)
+			writeStream:write(self.usedBoneCount,uint8)
+			writeStream:write(self.maxVertexWeights,uint8)
+			writeStream:write(0,uint8)	--Padding
+			for i=1,self.usedBoneCount do
+				writeStream:write(self.usedBoneIndice[i],uint8)
+			end
+			for i=1,self.parent.parent.struct.vertexCount do
+				writeStream:write(self.boneVertices[i][1],uint8)
+				writeStream:write(self.boneVertices[i][2],uint8)
+				writeStream:write(self.boneVertices[i][3],uint8)
+				writeStream:write(self.boneVertices[i][4],uint8)
+				
+			end
+			for i=1,self.parent.parent.struct.vertexCount do
+				writeStream:write(self.boneVertexWeights[i][1],float)
+				writeStream:write(self.boneVertexWeights[i][2],float)
+				writeStream:write(self.boneVertexWeights[i][3],float)
+				writeStream:write(self.boneVertexWeights[i][4],float)
+			end
+			for i=1,self.boneCount do
+				if self.version ~= 0x1803FFFF then
+					writeStream:write(0xDEADDEAD,uint32)
+				end
+				local boneTransform = self.bones[i]
+				writeStream:write(boneTransform[1][1],float)
+				writeStream:write(boneTransform[1][2],float)
+				writeStream:write(boneTransform[1][3],float)
+				writeStream:write(boneTransform[1][4],float)
+				writeStream:write(boneTransform[2][1],float)
+				writeStream:write(boneTransform[2][2],float)
+				writeStream:write(boneTransform[2][3],float)
+				writeStream:write(boneTransform[2][4],float)
+				writeStream:write(boneTransform[3][1],float)
+				writeStream:write(boneTransform[3][2],float)
+				writeStream:write(boneTransform[3][3],float)
+				writeStream:write(boneTransform[3][4],float)
+				writeStream:write(boneTransform[4][1],float)
+				writeStream:write(boneTransform[4][2],float)
+				writeStream:write(boneTransform[4][3],float)
+				writeStream:write(boneTransform[4][4],float)
+			end
+			if self.version == 0x1803FFFF then
+				writeStream:write(0,uint32)	--unused
+				writeStream:write(0,uint32)	--unused
+				writeStream:write(0,uint32)	--unused
+			end
+		end,
+		getSize = function(self)
+			local size = 4+self.usedBoneCount+self.parent.parent.struct.vertexCount*5
+			if size.version == 0x1803FFFF then
+				size = size+self.boneCount*16*4+3*4
+			else
+				size = size+self.boneCount*17*4
+			end
+			return size
+		end,
+	}
+}
+
 class "COLSection" {	typeID = 0x253F2FA,
 	extend = "Section",
 	collisionRaw = false,
@@ -1670,7 +1991,7 @@ class "COLSection" {	typeID = 0x253F2FA,
 
 class "DFFIO" {
 	uvAnimDict = false,
-	clump = false,
+	clumps = false,
 	readStream = false,
 	writeStream = false,
 	version = false,
@@ -1683,26 +2004,33 @@ class "DFFIO" {
 			end
 		end
 		self.readStream = ReadStream(pathOrRaw)
-		self.clump = Section()
-		self.clump:read(self.readStream)
-		self.version = self.clump.version
-		if self.clump.type == UVAnimDict.typeID then
-			recastClass(self.clump,UVAnimDict)
-			self.uvAnimDict = self.clump
-			self.uvAnimDict:read(self.readStream)
-			self.clump = Clump()
-		else
-			recastClass(self.clump,Clump)
+		self.clumps = {}
+		while self.readStream.readingPos+12 < #pathOrRaw do
+			local nextSection = Section()
+			nextSection:read(self.readStream)
+			self.version = nextSection.version
+			if nextSection.type == UVAnimDict.typeID then
+				recastClass(nextSection,UVAnimDict)
+				self.uvAnimDict = nextSection
+				nextSection:read(self.readStream)
+			elseif nextSection.type == Clump.typeID then
+				recastClass(nextSection,Clump)
+				self.clumps[#self.clumps+1] = nextSection
+				nextSection:read(self.readStream)
+			else
+				break	--Read End
+			end
 		end
-		self.clump:read(self.readStream)
 	end,
-	new = function(self,version)
-		self.clump = Clump()
-		self.clump:init(version or 0x1803FFFF)
+	createClump = function(self,version)
+		self.clumps[#self.clumps+1] = Clump()
+		self.clumps[#self.clumps+1]:init(version or 0x1803FFFF)
 	end,
 	save = function(self,fileName)
 		self.writeStream = WriteStream()
-		self.clump:write(self.writeStream)
+		for i=1,#self.clumps do
+			self.clumps[i]:write(self.writeStream)
+		end
 		local str = self.writeStream:save()
 		if fileName then
 			if fileExists(fileName) then fileDelete(fileName) end

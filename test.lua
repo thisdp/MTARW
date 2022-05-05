@@ -18,17 +18,18 @@ col:save("a.col")
 
 --[[
 local newBMP = BMP()
-newBMP:load("test.bmp")
-for i=60,1,-2 do
-	newBMP.pixels:addColumn(i)
-	newBMP.pixels:addRow(i)
-end
+newBMP:load("Untitled.bmp")
+newBMP.pixels:resize(newBMP.pixels.width*2,newBMP.pixels.height*2,"pixel")
 newBMP:save("a.bmp")]]
+--[[
+dff = DFFIO()
+dff:createClump()
+dff.clump:addComponent()
+]]
 
 local dff = DFFIO()
-dff:new()
-dff:save("test.dff")
-
+dff:load("head.dff")
+dff:save("a.dff")
 --[[
 local IMG = engineLoadIMGContainer("gta3.img")
 local dffFile = IMG:getFile("mlamppost.dff")

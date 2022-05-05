@@ -217,9 +217,17 @@ class "Section" {
 			local db = debug.getinfo(3)
 			print(db.source..":"..db.currentline..": Bad writeStream at @"..self.class)
 		end
-		if not tonumber(self.type) or not self.size or not self.version then
+		if not tonumber(self.type) then
 			local db = debug.getinfo(3)
-			print(db.source..":"..db.currentline..": Bad data at @"..self.class)
+			print(db.source..":"..db.currentline..": Bad type at @"..self.class)
+		end
+		if not tonumber(self.size) then
+			local db = debug.getinfo(3)
+			print(db.source..":"..db.currentline..": Bad size at @"..self.class)
+		end
+		if not tonumber(self.version) then
+			local db = debug.getinfo(3)
+			print(db.source..":"..db.currentline..": Bad version at @"..self.class)
 		end
 		writeStream:write(self.type,uint32)
 		writeStream:write(self.size,uint32)
@@ -240,6 +248,7 @@ class "Struct" { typeID = 0x01,
 		self.size = 0
 		self.version = version
 		self.type = Struct.typeID
+		return self
 	end,
 }
 
@@ -249,5 +258,9 @@ class "Extension" { typeID = 0x03,
 		self.size = 0
 		self.version = version
 		self.type = Extension.typeID
+		return self
+	end,
+	update = function(self)
+		self.size = self:getSize(true)
 	end,
 }

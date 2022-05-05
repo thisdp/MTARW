@@ -128,6 +128,7 @@ class "BMPPalette" {
 	end,
 }
 
+local tableInsert = table.insert
 class "PixelData" {
 	width = false,
 	height = false,
@@ -149,8 +150,8 @@ class "PixelData" {
 		if self.dataType ~= "table" then self:convert("table") end
 		self.height = self.height+1
 		insertID = insertID or self.height
-		fillColor = fillColor or tocolor(255,255,255,255)
-		table.insert(self.data,insertID or self.height,{})
+		fillColor = fillColor or 0xFFFFFFFF
+		tableInsert(self.data,insertID or self.height,{})
 		for w=1,self.width do
 			self.data[insertID][w] = fillColor
 		end
@@ -160,11 +161,34 @@ class "PixelData" {
 		if self.dataType ~= "table" then self:convert("table") end
 		self.width = self.width+1
 		insertID = insertID or self.width
-		fillColor = fillColor or tocolor(255,255,255,255)
+		fillColor = fillColor or 0xFFFFFFFF
 		for h=1,self.height do
-			table.insert(self.data[h],insertID,fillColor)
+			tableInsert(self.data[h],insertID,fillColor)
 		end
 		return insertID
+	end,
+	resize = function(self,width,height,resizeType)
+		if self.dataType ~= "table" then self:convert("table") end
+		local newData = {}
+		local oldData = self.data
+		local oldW,oldH = self.width,self.height
+		if resizeType == "pixel" then
+			for h=1,height do
+				newData[h] = {}
+				for w=1,width do
+					local x,y = w/width*oldW,h/height*oldH
+					local x,y = x-x%1+((x%1==0) and 0 or 1),y-y%1+((y%1==0) and 0 or 1)
+					newData[h][w] = oldData[y][x]
+				end
+			end
+			self.data = newData
+			self.width = width
+			self.height = height
+		elseif resizeType == "mipmap" then
+			self.data = newData
+			self.width = width
+			self.height = height
+		end
 	end,
 	convert = function(self,toType)
 		if toType == "raw"  then
