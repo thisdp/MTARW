@@ -135,19 +135,7 @@ function class(name)
 				if not classTable.methodContinueList[fncName] then
 					classTable.methodContinueList[fncName] = {classTable[fncName]}
 					classTable.methodContinueList[fncName][#classTable.methodContinueList[fncName]+1] = method
-					if fncName == "read" or fncName == "write" then
-						classTable[fncName] = function(self,...)
-							local fncs = classTable.methodContinueList[fncName]
-							for i=1,#fncs do
-								if not fncs[i] then
-									local db = debug.getinfo(2)
-									print(db.source..":"..db.currentline..": Bad continue at @"..name)
-								end
-								fncs[i](self,...)
-							end
-							return true
-						end
-					elseif fncName == "getSize" then
+					if fncName == "getSize" then
 						classTable[fncName] = function(self,...)
 							local fncs = classTable.methodContinueList[fncName]
 							local size = 0
@@ -164,6 +152,18 @@ function class(name)
 								size = size+dSize
 							end
 							return size
+						end
+					else
+						classTable[fncName] = function(self,...)
+							local fncs = classTable.methodContinueList[fncName]
+							for i=1,#fncs do
+								if not fncs[i] then
+									local db = debug.getinfo(2)
+									print(db.source..":"..db.currentline..": Bad continue at @"..name)
+								end
+								fncs[i](self,...)
+							end
+							return true
 						end
 					end
 				else
@@ -192,10 +192,11 @@ end
 oopUtil.class = class
 
 class "Section" {
-	type = 		false,
-	size = 		false,
-	version = 	false,
-	reader =	false,
+	type = 			false,
+	size = 			false,
+	version = 		false,
+	reader =		false,
+	sizeVersion = 	false,-- Record size change
 	read = function(self,readStream)
 		if self.version then return end	--Already read
 		if not readStream then
@@ -205,6 +206,7 @@ class "Section" {
 		self.type = readStream:read(uint32)
 		self.size = readStream:read(uint32)
 		self.version = readStream:read(uint32)
+		self.sizeVersion = 0
 		if self.typeID then
 			if self.typeID ~= self.type then
 				local db = debug.getinfo(3)
@@ -239,6 +241,9 @@ class "Section" {
 		else
 			return 12
 		end
+	end,
+	convert = function(self,targetVersion)
+		self.version = targetVersion
 	end,
 }
 

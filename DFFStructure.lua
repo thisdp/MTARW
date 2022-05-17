@@ -1,3 +1,7 @@
+EnumRWVersion = {
+	GTAVC = 0x0C02FFFF,
+	GTASA = 0x1803FFFF
+}
 EnumBlendMode = {
     NOBLEND      = 0x00,
     ZERO         = 0x01,
@@ -69,7 +73,12 @@ class "UVAnimDict" {	typeID = 0x2B,
 			self.struct:write(writeStream)
 		end,
 		getSize = function(self)
-			return self.struct:getSize()
+			local size = self.struct:getSize()
+			self.size = size
+			return size
+		end,
+		convert = function(self,targetVersion)
+			self.struct:convert(targetVersion)
 		end,
 	}
 }
@@ -88,10 +97,23 @@ class "UVAnimDictStruct" {
 			end
 		end,
 		write = function(self,writeStream)
-			writeStream:write(self.animationCount,uint32)
+			writeStream:write(#self.animations,uint32)
+			for i=1,#self.animations do
+				self.animations[i]:write(writeStream)
+			end
 		end,
 		getSize = function(self)
-			return 4
+			local size = 4
+			for i=1,#self.animations do
+				size = size+self.animations[i]:getSize()
+			end
+			self.size = size
+			return size
+		end,
+		convert = function(self,targetVersion)
+			for i=1,#self.animations do
+				self.animations[i]:convert(targetVersion)
+			end
 		end,
 	}
 }
@@ -152,7 +174,9 @@ class "UVAnim" {	typeID = 0x1B,
 			end
 		end,
 		getSize = function(self)
-			return 4*6+32+4*8+4*8*self.frameCount
+			local size = 4*6+32+4*8+4*8*self.frameCount
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -183,7 +207,9 @@ class "ClumpStruct" {
 			writeStream:write(self.cameraCount,int32)
 		end,
 		getSize = function(self)
-			return 12
+			local size = 12
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -262,18 +288,20 @@ class "Clump" {	typeID = 0x10,
 			self.extension:read(readStream)
 		end,
 		write = function(self,writeStream)
+			self.struct.atomicCount = #self.atomics
 			self.struct:write(writeStream)
 			--Write Frame List
 			self.frameList:write(writeStream)
 			--Write Geometry List
 			self.geometryList:write(writeStream)
 			--Write Atomics
-			for i=1,self.struct.atomicCount do
+			for i=1,#self.atomics do
 				--print("Write Atomic",i)
 				self.atomics[i]:write(writeStream)
 			end
 			--Write Lights
 			if self.indexStructs then
+				iprint(self.indexStructs)
 				for i=1,#self.indexStructs do
 					if self.lights[i] then
 						self.indexStructs[i]:write(writeStream)
@@ -286,11 +314,30 @@ class "Clump" {	typeID = 0x10,
 		end,
 		getSize = function(self)
 			local size = self.struct:getSize()+self.frameList:getSize()+self.geometryList:getSize()
-			for i=1,self.struct.atomicCount do
+			for i=1,#self.atomics do
 				size = size+self.atomics[i]:getSize()
 			end
 			size = size+self.extension:getSize()
+			self.size = size
 			return size
+		end,
+		convert = function(self,targetVersion)
+			self.struct:convert(targetVersion)
+			self.frameList:convert(targetVersion)
+			self.geometryList:convert(targetVersion)
+			for i=1,#self.atomics do
+				self.atomics[i]:convert(targetVersion)
+			end
+			if self.indexStructs then
+				for i=1,#self.indexStructs do
+					if self.lights[i] then
+						self.indexStructs[i]:convert(targetVersion)
+						self.lights[i]:convert(targetVersion)
+					end
+				end
+			end
+			self.extension:convert(targetVersion)
+			self:getSize()
 		end,
 	}
 }
@@ -306,7 +353,9 @@ class "IndexStruct" {
 			writeStream:write(self.index,uint32)
 		end,
 		getSize = function(self)
-			return 4
+			local size = 4
+			self.size = size
+			return size
 		end
 	}
 }
@@ -341,7 +390,9 @@ class "LightStruct" {
 			writeStream:write(self.lightType,uint16)
 		end,
 		getSize = function(self)
-			return 24
+			local size = 24
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -362,7 +413,13 @@ class "Light" {	typeID = 0x12,
 			self.extension:write(writeStream)
 		end,
 		getSize = function(self)
-			return self.struct:getSize()+self.extension:getSize()
+			local size = self.struct:getSize()+self.extension:getSize()
+			self.size = size
+			return size
+		end,
+		convert = function(self,targetVersion)
+			self.struct:convert(targetVersion)
+			self.extension:convert(targetVersion)
 		end,
 	}
 }
@@ -389,10 +446,17 @@ class "ClumpExtension" {
 			end
 		end,
 		getSize = function(self)
+			local size = 0
 			if self.collisionSection then
-				return self.collisionSection:getSize()
+				size = size+self.collisionSection:getSize()
 			end
-			return 0
+			self.size = size
+			return size
+		end,
+		convert = function(self,targetVersion)
+			if self.collisionSection then
+				self.collisionSection:convert(targetVersion)
+			end
 		end,
 	}
 }
@@ -492,7 +556,9 @@ class "FrameListStruct" {
 			end
 		end,
 		getSize = function(self)
-			return 4+(9*4+3*4+4+4)*#self.frameInfo
+			local size = 4+(9*4+3*4+4+4)*#self.frameInfo
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -532,17 +598,25 @@ class "FrameList" {	typeID = 0x0E,
 			end
 		end,
 		write = function(self,writeStream)
+			self.struct.frameCount = #self.frames
 			self.struct:write(writeStream)
-			for i=1,self.struct.frameCount do
+			for i=1,#self.frames do
 				self.frames[i]:write(writeStream)
 			end
 		end,
 		getSize = function(self)
 			local size = self.struct:getSize()
-			for i=1,self.struct.frameCount do
+			for i=1,#self.frames do
 				size = size+self.frames[i]:getSize()
 			end
+			self.size = size
 			return size
+		end,
+		convert = function(self,targetVersion)
+			self.struct:convert(targetVersion)
+			for i=1,#self.frames do
+				self.frames[i]:convert(targetVersion)
+			end
 		end,
 	}
 }
@@ -578,13 +652,22 @@ class "FrameListExtension" {
 			if self.HAnimPLG then
 				self.HAnimPLG:write(writeStream)
 			end
-			iprint(self.frame)
 			if self.frame then
 				self.frame:write(writeStream)
 			end
 		end,
 		getSize = function(self)
-			return self.frame:getSize()
+			local size = self.frame:getSize()
+			self.size = size
+			return size
+		end,
+		convert = function(self,targetVersion)
+			if self.HAnimPLG then
+				self.HAnimPLG:convert(targetVersion)
+			end
+			if self.frame then
+				self.frame:convert(targetVersion)
+			end
 		end,
 	},
 }
@@ -612,7 +695,9 @@ class "Frame" {	typeID = 0x253F2FE,
 			writeStream:write(self.name,char,self.size)
 		end,
 		getSize = function(self)
-			return #self.name
+			local size = #self.name
+			self.size = size
+			return size
 		end,
 	},
 }
@@ -634,7 +719,9 @@ class "GeometryListStruct" {
 			writeStream:write(self.geometryCount,uint32)
 		end,
 		getSize = function(self)
-			return 4
+			local size = 4
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -671,17 +758,25 @@ class "GeometryList" {	typeID = 0x1A,
 			end
 		end,
 		write = function(self,writeStream)
+			self.struct.geometryCount = #self.geometries
 			self.struct:write(writeStream)
-			for i=1,self.struct.geometryCount do
+			for i=1,#self.geometries do
 				self.geometries[i]:write(writeStream)
 			end
 		end,
 		getSize = function(self)
 			local size = self.struct:getSize()
-			for i=1,self.struct.geometryCount do
+			for i=1,#self.geometries do
 				size = size+self.geometries[i]:getSize()
 			end
+			self.size = size
 			return size
+		end,
+		convert = function(self,targetVersion)
+			self.struct:convert(targetVersion)
+			for i=1,#self.geometries do
+				self.geometries[i]:convert(targetVersion)
+			end
 		end,
 	}
 }
@@ -692,6 +787,10 @@ class "GeometryStruct" {
 	trangleCount = false,
 	vertexCount = false,
 	morphTargetCount = false,
+	--version < EnumRWVersion.GTASA
+	ambient = false,
+	specular = false,
+	diffuse = false,
 	--Data
 	vertexColors = false,
 	texCoords = false,
@@ -744,6 +843,12 @@ class "GeometryStruct" {
 			self.triangleCount = readStream:read(uint32)
 			self.vertexCount = readStream:read(uint32)
 			self.morphTargetCount = readStream:read(uint32)
+			--
+			if self.version < EnumRWVersion.GTASA then
+				self.ambient = readStream:read(float)
+				self.specular = readStream:read(float)
+				self.diffuse = readStream:read(float)
+			end
 			
 			if not self.bNative then
 				if self.bVertexColor then
@@ -791,6 +896,11 @@ class "GeometryStruct" {
 			writeStream:write(self.triangleCount,uint32)
 			writeStream:write(self.vertexCount,uint32)
 			writeStream:write(self.morphTargetCount,uint32)
+			if self.version < EnumRWVersion.GTASA then
+				writeStream:write(self.ambient,float)
+				writeStream:write(self.specular,float)
+				writeStream:write(self.diffuse,float)
+			end
 			if not self.bNative then
 				if self.bVertexColor then
 					--R,G,B,A
@@ -842,26 +952,25 @@ class "GeometryStruct" {
 		end,
 		getSize = function(self)
 			local size = 4*4
+			if self.version < EnumRWVersion.GTASA then
+				size = size+4*3
+			end
 			if not self.bNative then
 				if self.bVertexColor then
-					size = size+3*1*self.vertexCount
+					size = size+self.vertexCount*4
 				end
-				for i=1,(self.TextureCount ~= 0 and self.TextureCount or ((self.bTextured and 1 or 0)+(self.bTextured2 and 1 or 0)) ) do
-					--U,V
-					size = size+4*2*self.vertexCount
-				end
-				size = size+2*4*self.triangleCount
+				size = size+self.vertexCount*4*2*(self.TextureCount ~= 0 and self.TextureCount or ((self.bTextured and 1 or 0)+(self.bTextured2 and 1 or 0)))+self.triangleCount*2*4
 			end
-			for i=1,self.morphTargetCount do	--morphTargetCount should be 1
-				--X,Y,Z,Radius
+			for i=1,self.morphTargetCount do
 				size = size+4*6
 				if self.hasVertices then
-					size = size+4*3*self.vertexCount
+					size = size+self.vertexCount*4*3
 				end
 				if self.hasNormals then
-					size = size+4*3*self.vertexCount
+					size = size+self.vertexCount*4*3
 				end
 			end
+			self.size = size
 			return size
 		end,
 	}
@@ -899,7 +1008,14 @@ class "Geometry" {	typeID = 0x0F,
 			self.extension:write(writeStream)
 		end,
 		getSize = function(self)
-			return self.struct:getSize()+self.materialList:getSize()+self.extension:getSize()
+			local size = self.struct:getSize()+self.materialList:getSize()+self.extension:getSize()
+			self.size = size
+			return size
+		end,
+		convert = function(self,targetVersion)
+			self.struct:convert(targetVersion)
+			self.materialList:convert(targetVersion)
+			self.extension:convert(targetVersion)
 		end,
 	}
 }
@@ -978,7 +1094,25 @@ class "GeometryExtension" {
 			if self.effect2D then
 				size = size+self.effect2D:getSize()
 			end
+			self.size = size
 			return size
+		end,
+		convert = function(self,targetVersion)
+			if self.binMeshPLG then
+				self.binMeshPLG:convert(targetVersion)
+			end
+			if self.skinPLG then
+				self.skinPLG:convert(targetVersion)
+			end
+			if self.breakable then
+				self.breakable:convert(targetVersion)
+			end
+			if self.nightVertexColor then
+				self.nightVertexColor:convert(targetVersion)
+			end
+			if self.effect2D then
+				self.effect2D:convert(targetVersion)
+			end
 		end,
 	}
 }
@@ -1005,7 +1139,9 @@ class "NightVertexColor" {	typeID = 0x253F2F9,
 			end
 		end,
 		getSize = function(self)
-			return 4*#self.colors
+			local size = 4*#self.colors
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -1038,7 +1174,9 @@ class "MaterialListStruct" {
 			end
 		end,
 		getSize = function(self)
-			return 4+4*self.materialCount
+			local size = 4+4*self.materialCount
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -1069,17 +1207,25 @@ class "MaterialList" {	typeID = 0x08,
 			end
 		end,
 		write = function(self,writeStream)
+			self.struct.materialCount = #self.materials
 			self.struct:write(writeStream)
-			for matIndex=1,self.struct.materialCount do
+			for matIndex=1,#self.materials do
 				self.materials[matIndex]:write(writeStream)
 			end
 		end,
 		getSize = function(self)
 			local size = self.struct:getSize()
-			for matIndex=1,self.struct.materialCount do
+			for matIndex=1,#self.materials do
 				size = size+self.materials[matIndex]:getSize()
 			end
+			self.size = size
 			return size
+		end,
+		convert = function(self,targetVersion)
+			self.struct:convert(targetVersion)
+			for matIndex=1,#self.materials do
+				self.materials[matIndex]:convert(targetVersion)
+			end
 		end,
 	}
 }
@@ -1129,7 +1275,9 @@ class "MaterialStruct" {
 			writeStream:write(self.diffuse,float)
 		end,
 		getSize = function(self)
-			return 28	-- 4+1*4+4+4+4*3
+			local size = 28 -- 4+1*4+4+4+4*3
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -1185,7 +1333,29 @@ class "MaterialExtension" {
 			end
 		end,
 		getSize = function(self)
-			return self.reflectionMaterial:getSize()+(self.specularMaterial and self.specularMaterial:getSize() or 0)
+			local size = 0
+			if self.reflectionMaterial then
+				size = size+self.reflectionMaterial:getSize()
+			end
+			if self.specularMaterial then
+				size = size+self.specularMaterial:getSize()
+			end
+			if self.materialEffect then
+				size = size+self.materialEffect:getSize()
+			end
+			self.size = size
+			return size
+		end,
+		convert = function(self,targetVersion)
+			if self.reflectionMaterial then
+				self.reflectionMaterial:convert(targetVersion)
+			end
+			if self.specularMaterial then
+				self.specularMaterial:convert(targetVersion)
+			end
+			if self.materialEffect then
+				self.materialEffect:convert(targetVersion)
+			end
 		end,
 	}
 }
@@ -1224,7 +1394,16 @@ class "Material" {	typeID = 0x07,
 			self.extension:write(writeStream)
 		end,
 		getSize = function(self)
-			return self.struct:getSize()+(self.struct.isTextured and self.texture:getSize() or 0)+self.extension:getSize()
+			local size = self.struct:getSize()+(self.struct.isTextured and self.texture:getSize() or 0)+self.extension:getSize()
+			self.size = size
+			return size
+		end,
+		convert = function(self,targetVersion)
+			self.struct:convert(targetVersion)
+			if self.struct.isTextured then
+				self.texture:convert(targetVersion)
+			end
+			self.extension:convert(targetVersion)
 		end,
 	}
 }
@@ -1255,7 +1434,9 @@ class "ReflectionMaterial" {	typeID = 0x0253F2FC,
 			writeStream:write(self.envTexturePtr,uint32)
 		end,
 		getSize = function(self)
-			return 24
+			local size = 24
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -1274,7 +1455,9 @@ class "SpecularMaterial" {	typeID = 0x0253F2F6,
 			writeStream:write(self.textureName,char,24)
 		end,
 		getSize = function(self)
-			return 28
+			local size = 28
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -1308,7 +1491,9 @@ class "TextureStruct" {
 			writeStream:write(self.flags,uint32)
 		end,
 		getSize = function(self)
-			return 4
+			local size = 4
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -1350,7 +1535,15 @@ class "Texture" {	typeID = 0x06,
 			self.extension:write(writeStream)
 		end,
 		getSize = function(self)
-			return self.struct:getSize()+self.textureName:getSize()+self.maskName:getSize()+self.extension:getSize()
+			local size = self.struct:getSize()+self.textureName:getSize()+self.maskName:getSize()+self.extension:getSize()
+			self.size = size
+			return size
+		end,
+		convert = function(self,targetVersion)
+			self.struct:convert(targetVersion)
+			self.textureName:convert(targetVersion)
+			self.maskName:convert(targetVersion)
+			self.extension:convert(targetVersion)
 		end,
 	}
 }
@@ -1418,6 +1611,7 @@ class "BinMeshPLG" {	typeID = 0x50E,
 			for i=1,self.materialSplitCount do
 				size = size+8+self.materialSplits[i][1]*4
 			end
+			self.size = size
 			return size
 		end,
 	}
@@ -1560,11 +1754,14 @@ class "Breakable" {	typeID = 0x0253F2FD,
 			end
 		end,
 		getSize = function(self)
+			local size = 0
 			if self.flags == 0 then
-				return 4
+				size = 4
 			else
-				return 14*4+self.vertexCount*8*4+self.materialCount*32*2+self.materialCount*3*4
+				size = 14*4+self.vertexCount*8*4+self.materialCount*32*2+self.materialCount*3*4
 			end
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -1603,7 +1800,9 @@ class "AtomicStruct" {
 			writeStream:write(self.unused,uint32)
 		end,
 		getSize = function(self)
-			return 16
+			local size = 16
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -1622,22 +1821,24 @@ class "AtomicExtension" {
 		read = function(self,readStream)
 			local nextSection
 			local readSize = 0
-			repeat
-				nextSection = Section()
-				nextSection:read(readStream)
-				if nextSection.type == Pipline.typeID then
-					recastClass(nextSection,Pipline)
-					self.pipline = nextSection
-				elseif nextSection.type == MaterialEffectPLG.typeID then
-					recastClass(nextSection,MaterialEffectPLG)
-					self.materialEffect = nextSection
-				else
-					error("Unsupported Automic Plugin "..nextSection.type)
-				end
-				nextSection.parent = self
-				nextSection:read(readStream)
-				readSize = readSize+nextSection.size+12
-			until readSize >= self.size
+			if self.size ~= 0 then
+				repeat
+					nextSection = Section()
+					nextSection:read(readStream)
+					if nextSection.type == Pipline.typeID then
+						recastClass(nextSection,Pipline)
+						self.pipline = nextSection
+					elseif nextSection.type == MaterialEffectPLG.typeID then
+						recastClass(nextSection,MaterialEffectPLG)
+						self.materialEffect = nextSection
+					else
+						error("Unsupported Automic Plugin "..nextSection.type)
+					end
+					nextSection.parent = self
+					nextSection:read(readStream)
+					readSize = readSize+nextSection.size+12
+				until readSize >= self.size
+			end
 		end,
 		write = function(self,writeStream)
 			if self.pipline then
@@ -1655,7 +1856,16 @@ class "AtomicExtension" {
 			if self.materialEffect then
 				size = size+self.materialEffect:getSize()
 			end
+			self.size = size
 			return size
+		end,
+		convert = function(self,targetVersion)
+			if self.pipline then
+				self.pipline:convert(targetVersion)
+			end
+			if self.materialEffect then
+				self.materialEffect:convert(targetVersion)
+			end
 		end,
 	}
 }
@@ -1684,7 +1894,13 @@ class "Atomic" {	typeID = 0x14,
 			self.extension:write(writeStream)
 		end,
 		getSize = function(self)
-			return self.struct:getSize()+self.extension:getSize()
+			local size = self.struct:getSize()+self.extension:getSize()
+			self.size = size
+			return size
+		end,
+		convert = function(self,targetVersion)
+			self.struct:convert(targetVersion)
+			self.extension:convert(targetVersion)
 		end,
 	}
 }
@@ -1703,7 +1919,9 @@ class "Pipline" {	typeID = 0x1F,	--Right To Render
 			writeStream:write(self.extraData,uint32)
 		end,
 		getSize = function(self)
-			return 8
+			local size = 8
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -1774,7 +1992,13 @@ class "MaterialEffectPLG" {	typeID = 0x120,
 			elseif self.effectType == 0x05 then
 				size = size+8+4
 			end
+			self.size = size
 			return size
+		end,
+		convert = function(self,targetVersion)
+			if self.useEnvMap then
+				self.texture:convert(targetVersion)
+			end
 		end,
 	}
 }
@@ -1793,7 +2017,9 @@ class "UVAnimPLGStruct" {
 			writeStream:write(self.name,char,32)
 		end,
 		getSize = function(self)
-			return 36
+			local size = 36
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -1810,7 +2036,12 @@ class "UVAnimPLG" {	typeID = 0x135,
 			self.struct:write(writeStream)
 		end,
 		getSize = function(self)
-			return self.struct:getSize()
+			local size = self.struct:getSize()
+			self.size = size
+			return size
+		end,
+		convert = function(self,targetVersion)
+			self.struct:convert(targetVersion)
 		end,
 	}
 }
@@ -1860,6 +2091,7 @@ class "HAnimPLG" {	typeID = 0x11E,
 			if self.nodeCount ~= 0 then	--Root Bone
 				size = size+8+self.nodeCount*4
 			end
+			self.size = size
 			return size
 		end,
 	}
@@ -1896,7 +2128,7 @@ class "SkinPLG" {	typeID = 0x116,
 			end
 			self.bones = {}
 			for i=1,self.boneCount do
-				if self.version ~= 0x1803FFFF then
+				if self.version ~= EnumRWVersion.GTASA then
 					readStream:read(uint32)
 				end
 				self.bones[i] = {
@@ -1906,7 +2138,7 @@ class "SkinPLG" {	typeID = 0x116,
 					{readStream:read(float),readStream:read(float),readStream:read(float),readStream:read(float)},
 				}
 			end
-			if self.version == 0x1803FFFF then
+			if self.version == EnumRWVersion.GTASA then
 				readStream:read(uint32)	--unused
 				readStream:read(uint32)	--unused
 				readStream:read(uint32)	--unused
@@ -1934,7 +2166,7 @@ class "SkinPLG" {	typeID = 0x116,
 				writeStream:write(self.boneVertexWeights[i][4],float)
 			end
 			for i=1,self.boneCount do
-				if self.version ~= 0x1803FFFF then
+				if self.version ~= EnumRWVersion.GTASA then
 					writeStream:write(0xDEADDEAD,uint32)
 				end
 				local boneTransform = self.bones[i]
@@ -1955,7 +2187,7 @@ class "SkinPLG" {	typeID = 0x116,
 				writeStream:write(boneTransform[4][3],float)
 				writeStream:write(boneTransform[4][4],float)
 			end
-			if self.version == 0x1803FFFF then
+			if self.version == EnumRWVersion.GTASA then
 				writeStream:write(0,uint32)	--unused
 				writeStream:write(0,uint32)	--unused
 				writeStream:write(0,uint32)	--unused
@@ -1963,11 +2195,12 @@ class "SkinPLG" {	typeID = 0x116,
 		end,
 		getSize = function(self)
 			local size = 4+self.usedBoneCount+self.parent.parent.struct.vertexCount*5
-			if size.version == 0x1803FFFF then
+			if size.version == EnumRWVersion.GTASA then
 				size = size+self.boneCount*16*4+3*4
 			else
 				size = size+self.boneCount*17*4
 			end
+			self.size = size
 			return size
 		end,
 	}
@@ -1984,7 +2217,9 @@ class "COLSection" {	typeID = 0x253F2FA,
 			writeStream:write(self.collisionRaw,bytes,#self.collisionRaw)
 		end,
 		getSize = function(self)
-			return #self.collisionRaw
+			local size = #self.collisionRaw
+			self.size = size
+			return size
 		end,
 	}
 }
@@ -2024,7 +2259,7 @@ class "DFFIO" {
 	end,
 	createClump = function(self,version)
 		self.clumps[#self.clumps+1] = Clump()
-		self.clumps[#self.clumps+1]:init(version or 0x1803FFFF)
+		self.clumps[#self.clumps+1]:init(version or EnumRWVersion.GTASA)
 	end,
 	save = function(self,fileName)
 		self.writeStream = WriteStream()
@@ -2040,5 +2275,13 @@ class "DFFIO" {
 			return true
 		end
 		return str
+	end,
+	convert = function(self,target)
+		if not type(target) == "string" then error("Bad argument @convert at argument 1, expected a string got "..type(target)) end
+		if not EnumRWVersion[target:upper()] then error("Bad argument @convert at argument 1, invalid type "..target) end
+		for i=1,#self.clumps do
+			self.clumps[i]:convert(EnumRWVersion[target:upper()])
+		end
+		return true
 	end,
 }

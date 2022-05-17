@@ -18,7 +18,7 @@ col:save("a.col")
 
 --[[
 local newBMP = BMP()
-newBMP:load("Untitled.bmp")
+newBMP:load("test.bmp")
 newBMP.pixels:resize(newBMP.pixels.width*2,newBMP.pixels.height*2,"pixel")
 newBMP:save("a.bmp")]]
 --[[
@@ -28,8 +28,11 @@ dff.clump:addComponent()
 ]]
 
 local dff = DFFIO()
-dff:load("head.dff")
-dff:save("a.dff")
+dff:load("something.dff")
+dff:convert("GTASA")
+local theDFF = engineLoadDFF(dff:save())
+engineReplaceModel(theDFF,3458)
+--dff:save("a.dff")
 --[[
 local IMG = engineLoadIMGContainer("gta3.img")
 local dffFile = IMG:getFile("mlamppost.dff")

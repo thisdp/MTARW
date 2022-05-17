@@ -1,4 +1,3 @@
-
 class "COLIO" {	
 	collision = nil,
 	readStream = nil,

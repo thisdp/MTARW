@@ -9,6 +9,7 @@
 	<script src="COLStructure.lua" type="client" />
 	<script src="BMP.lua" type="client" />
 	<script src="test.lua" type="client" />
+	<!--<file src="test.dff" type="client" />-->
 	
 	<oop>true</oop>
 </meta>
