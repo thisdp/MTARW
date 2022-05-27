@@ -1,4 +1,3 @@
-
 --Enums
 EnumFilterMode = {
 	NEAREST = 1,
@@ -58,7 +57,36 @@ EnumD3DFormat = {
 	DXT3 = 0x33545844,
 	--DXT4 = 0x34545844,
 	DXT5 = 0x35545844,
-},
+}
+--RW Version
+EnumRWTXDVersion = {
+	GTASA = {
+		Platform = {
+			PC = EnumDeviceID.D3D9,
+			XBOX = EnumDeviceID.XBOX,
+			PS2 = EnumDeviceID.PS2,
+		}
+	},
+	GTAVC = {
+		Platform = {
+			PC = EnumDeviceID.D3D8,
+			XBOX = EnumDeviceID.XBOX,
+			PS2 = EnumDeviceID.PS2,
+		}
+	},
+	GTA3 = {
+		Platform = {
+			PC = EnumDeviceID.D3D8,
+			XBOX = EnumDeviceID.XBOX,
+		}
+	}
+}
+
+function rwioGetTXDVersion(gtaVer,platform)
+	return EnumRWTXDVersion[gtaVer][platform]
+end
+
+
 
 class "TXDIO" {
 	textureDictionary = false,

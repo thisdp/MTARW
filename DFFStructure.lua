@@ -67,6 +67,7 @@ class "UVAnimDict" {	typeID = 0x2B,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = UVAnimDictStruct()
+			self.struct.parent = self
 			self.struct:read(readStream)
 		end,
 		write = function(self,writeStream)
@@ -93,6 +94,7 @@ class "UVAnimDictStruct" {
 			self.animations = {}
 			for i=1,self.animationCount do
 				self.animations[i] = UVAnim()
+				self.animations[i].parent = self
 				self.animations[i]:read(readStream)
 			end
 		end,
@@ -225,9 +227,13 @@ class "Clump" {	typeID = 0x10,
 	extension = false,
 	init = function(self,version)
 		self.struct = ClumpStruct():init(version)
+		self.struct.parent = self
 		self.frameList = FrameList():init(version)
+		self.frameList.parent = self
 		self.geometryList = GeometryList():init(version)
+		self.geometryList.parent = self
 		self.extension = Extension():init(version)
+		self.extension.parent = self
 		self.atomics = {}
 		self.indexStructs = {}
 		self.lights = {}
@@ -238,6 +244,7 @@ class "Clump" {	typeID = 0x10,
 	end,
 	createAtomic = function(self)
 		local atomic = Atomic():init(self.version)
+		self.atomic.parent = self
 		self.struct.atomicCount = self.struct.atomicCount+1
 		self.atomics[self.struct.atomicCount] = atomic
 		self.size = self:getSize(true)
@@ -252,23 +259,28 @@ class "Clump" {	typeID = 0x10,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = ClumpStruct()
+			self.struct.parent = self
 			self.struct:read(readStream)
 			--Read Frame List
 			self.frameList = FrameList()
+			self.frameList.parent = self
 			self.frameList:read(readStream)
 			--Read Geometry List
 			self.geometryList = GeometryList()
+			self.geometryList.parent = self
 			self.geometryList:read(readStream)
 			--Read Atomics
 			self.atomics = {}
 			for i=1,self.struct.atomicCount do
 				--print("Reading Atomic",i,readStream.readingPos)
 				self.atomics[i] = Atomic()
+				self.atomics[i].parent = self
 				self.atomics[i]:read(readStream)
 			end
 			local nextSection
 			repeat
 				nextSection = Section()
+				nextSection.parent = self
 				nextSection:read(readStream)
 				if nextSection.type == Struct.typeID then
 					recastClass(nextSection,IndexStruct)
@@ -404,8 +416,10 @@ class "Light" {	typeID = 0x12,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = LightStruct()
+			self.struct.parent = self
 			self.struct:read(readStream)
 			self.extension = Extension()
+			self.extension.parent = self
 			self.extension:read(readStream)
 		end,
 		write = function(self,writeStream)
@@ -437,6 +451,7 @@ class "ClumpExtension" {
 		read = function(self,readStream)
 			if self.size > 0 then
 				self.collisionSection = COLSection()
+				self.collisionSection.parent = self
 				self.collisionSection:read(readStream)
 			end
 		end,
@@ -492,35 +507,27 @@ class "FrameListStruct" {
 		self.frameInfo[frameInfoID].parentFrame = parentFrameID
 		return self
 	end,
-	setFrameInfoPosition = function(self,x,y,z)
-		if not self.frameInfo[frameInfoID] then error("Bad argument @setFrameInfoParentFrame, frame info index out of range, total "..#self.frameInfo.." got "..frameInfoID) end
+	setFrameInfoPosition = function(self,frameInfoID,x,y,z)
+		if not self.frameInfo[frameInfoID] then error("Bad argument @setFrameInfoPosition, frame info index out of range, total "..#self.frameInfo.." got "..frameInfoID) end
 		self.frameInfo[frameInfoID].positionVector[1] = x
 		self.frameInfo[frameInfoID].positionVector[2] = y
 		self.frameInfo[frameInfoID].positionVector[3] = z
 		return self
 	end,
-	setFrameInfoRotation = function(self,rx,ry,rz)
-		if not self.frameInfo[frameInfoID] then error("Bad argument @setFrameInfoParentFrame, frame info index out of range, total "..#self.frameInfo.." got "..frameInfoID) end
-		local rotMatrix = self.frameInfo[frameInfoID].rotationMatrix
-		local rx = math.rad(rx)
-		local ry = math.rad(ry)
-		local rz = math.rad(rz)
-		local cX = math.cos(rx)
-		local sX = math.sin(rx)
-		local cY = math.cos(ry)
-		local sY = math.sin(ry)
-		local cZ = math.cos(rz)
-		local sZ = math.sin(rz)
-		rotMatrix[1][1] = cZ * cY - (sZ * sX) * sY
-		rotMatrix[1][2] = (cZ * sX) * sY + sZ * cY
-		rotMatrix[1][3] = -cX * sY
-		rotMatrix[2][1] = -sZ * cX
-		rotMatrix[2][2] = cZ * cX
-		rotMatrix[2][3] = sX
-		rotMatrix[3][1] = (sZ * sX) * cY + cZ * sY
-		rotMatrix[3][2] = sZ * sY - (cZ * sX) * cY
-		rotMatrix[3][3] = cX * cY
+	getFrameInfoPosition = function(self,frameInfoID)
+		if not self.frameInfo[frameInfoID] then error("Bad argument @getFrameInfoParentFrame, frame info index out of range, total "..#self.frameInfo.." got "..frameInfoID) end
+		local posVector = self.frameInfo[frameInfoID]
+		return posVector[1],posVector[2],posVector[3]
+	end,
+	setFrameInfoRotation = function(self,frameInfoID,rx,ry,rz)
+		if not self.frameInfo[frameInfoID] then error("Bad argument @setFrameInfoRotation, frame info index out of range, total "..#self.frameInfo.." got "..frameInfoID) end
+		self.frameInfo[frameInfoID].rotationMatrix = eulerToRotationMatrix(rx,ry,rz)
 		return self
+	end,
+	getFrameInfoRotation = function(self,frameInfoID)
+		if not self.frameInfo[frameInfoID] then error("Bad argument @getFrameInfoRotation, frame info index out of range, total "..#self.frameInfo.." got "..frameInfoID) end
+        local rotMatrix = self.frameInfo[frameInfoID].rotationMatrix
+		return rotationMatrixToEuler(rotMatrix)
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -569,6 +576,7 @@ class "FrameList" {	typeID = 0x0E,
 	frames = false,
 	init = function(self,version)
 		self.struct = FrameListStruct():init(version)
+		self.struct.parent = self
 		self.frames = {}
 		self.size = self:getSize(true)
 		self.version = version
@@ -577,6 +585,7 @@ class "FrameList" {	typeID = 0x0E,
 	end,
 	createFrame = function(self,name)
 		local FrameListExtension = FrameListExtension():init(self.version)
+		FrameListExtension.parent = self
 		FrameListExtension.frame:setName(name or "unnamed")
 		FrameListExtension:update()
 		self.struct:createFrameInfo()
@@ -589,11 +598,13 @@ class "FrameList" {	typeID = 0x0E,
 		read = function(self,readStream)
 			--Read Struct
 			self.struct = FrameListStruct()
+			self.struct.parent = self
 			self.struct:read(readStream)
 			--Read Frames
 			self.frames = {}
 			for i=1,self.struct.frameCount do
 				self.frames[i] = FrameListExtension()
+				self.frames[i].parent = self
 				self.frames[i]:read(readStream)
 			end
 		end,
@@ -627,6 +638,7 @@ class "FrameListExtension" {
 	HAnimPLG = false,
 	init = function(self,version)
 		self.frame = Frame():init(version)
+		self.frame.parent = self
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = FrameListExtension.typeID
@@ -636,12 +648,14 @@ class "FrameListExtension" {
 		read = function(self,readStream)
 			if self.size ~= 0 then
 				local section = Section()
+				section.parent = self
 				section:read(readStream)
 				if section.type == HAnimPLG.typeID then
 					recastClass(section,HAnimPLG)
 					self.HAnimPLG = section
 					self.HAnimPLG:read(readStream)
 					section = Section()
+					section.parent = self
 				end
 				recastClass(section,Frame)
 				self.frame = section
@@ -732,6 +746,7 @@ class "GeometryList" {	typeID = 0x1A,
 	geometries = false,
 	init = function(self,version)
 		self.struct = GeometryListStruct():init(version)
+		self.struct.parent = self
 		self.geometries = {}
 		self.size = self:getSize(true)
 		self.version = version
@@ -740,6 +755,7 @@ class "GeometryList" {	typeID = 0x1A,
 	end,
 	createGeometry = function(self)
 		local geometry = Geometry():init(self.version)
+		geometry.parent = self
 		self.struct.geometryCount = self.struct.geometryCount+1
 		self.geometries[self.struct.geometryCount] = geometry
 		self.size = self:getSize(true)
@@ -748,12 +764,14 @@ class "GeometryList" {	typeID = 0x1A,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = GeometryListStruct()
+			self.struct.parent = self
 			self.struct:read(readStream)
 			self.geometries = {}
 			--Read Geometries
 			for i=1,self.struct.geometryCount do
 				--print("Reading Geometry",i)
 				self.geometries[i] = Geometry()
+				self.geometries[i].parent = self
 				self.geometries[i]:read(readStream)
 			end
 		end,
@@ -794,7 +812,7 @@ class "GeometryStruct" {
 	--Data
 	vertexColors = false,
 	texCoords = false,
-	triangles = false,
+	faces = false,
 	vertices = false,
 	normals = false,
 	boundingSphere = false,
@@ -814,7 +832,7 @@ class "GeometryStruct" {
 	--
 	init = function(self,version)
 		self.flags = 0
-		self.triangleCount = 0
+		self.faceCount = 0
 		self.vertexCount = 0
 		self.morphTargetCount = 1
 		self.boundingSphere = {0,0,0,0}
@@ -839,8 +857,8 @@ class "GeometryStruct" {
 			self.bTextured2 = bExtract(self.flags,7) == 1
 			self.bNative = bExtract(self.flags,24) == 1
 			self.TextureCount = bExtract(self.flags,16,8)
-			--Read triangle count
-			self.triangleCount = readStream:read(uint32)
+			--Read face count
+			self.faceCount = readStream:read(uint32)
 			self.vertexCount = readStream:read(uint32)
 			self.morphTargetCount = readStream:read(uint32)
 			--
@@ -866,34 +884,34 @@ class "GeometryStruct" {
 						self.texCoords[i][vertices] = {readStream:read(float),readStream:read(float)}
 					end
 				end
-				self.triangles = {}
-				for i=1,self.triangleCount do
+				self.faces = {}
+				for i=1,self.faceCount do
 					--Vertex2, Vertex1, MaterialID, Vertex3
-					self.triangles[i] = {readStream:read(uint16),readStream:read(uint16),readStream:read(uint16),readStream:read(uint16)}
+					self.faces[i] = {readStream:read(uint16),readStream:read(uint16),readStream:read(uint16),readStream:read(uint16)}
 				end
 			end
-			for i=1,self.morphTargetCount do	--morphTargetCount should be 1
-				--X,Y,Z,Radius
-				self.boundingSphere = {readStream:read(float),readStream:read(float),readStream:read(float),readStream:read(float)}
-				self.hasVertices = readStream:read(uint32) ~= 0
-				self.hasNormals = readStream:read(uint32) ~= 0
-				if self.hasVertices then
-					self.vertices = {}
-					for vertex=1,self.vertexCount do
-						self.vertices[vertex] = {readStream:read(float),readStream:read(float),readStream:read(float)}
-					end
-				end
-				if self.hasNormals then
-					self.normals = {}
-					for vertex=1,self.vertexCount do
-						self.normals[vertex] = {readStream:read(float),readStream:read(float),readStream:read(float)}
-					end
+			--for i=1,self.morphTargetCount do	--morphTargetCount must be 1
+			--X,Y,Z,Radius
+			self.boundingSphere = {readStream:read(float),readStream:read(float),readStream:read(float),readStream:read(float)}
+			self.hasVertices = readStream:read(uint32) ~= 0
+			self.hasNormals = readStream:read(uint32) ~= 0
+			if self.hasVertices then
+				self.vertices = {}
+				for vertex=1,self.vertexCount do
+					self.vertices[vertex] = {readStream:read(float),readStream:read(float),readStream:read(float)}
 				end
 			end
+			if self.hasNormals then
+				self.normals = {}
+				for vertex=1,self.vertexCount do
+					self.normals[vertex] = {readStream:read(float),readStream:read(float),readStream:read(float)}
+				end
+			end
+			--end
 		end,
 		write = function(self,writeStream)
 			writeStream:write(self.flags,uint32)
-			writeStream:write(self.triangleCount,uint32)
+			writeStream:write(self.faceCount,uint32)
 			writeStream:write(self.vertexCount,uint32)
 			writeStream:write(self.morphTargetCount,uint32)
 			if self.version < EnumRWVersion.GTASA then
@@ -918,12 +936,12 @@ class "GeometryStruct" {
 						writeStream:write(self.texCoords[i][vertices][2],float)
 					end
 				end
-				for i=1,self.triangleCount do
+				for i=1,self.faceCount do
 					--Vertex2, Vertex1, MaterialID, Vertex3
-					writeStream:write(self.triangles[i][1],uint16)
-					writeStream:write(self.triangles[i][2],uint16)
-					writeStream:write(self.triangles[i][3],uint16)
-					writeStream:write(self.triangles[i][4],uint16)
+					writeStream:write(self.faces[i][1],uint16)
+					writeStream:write(self.faces[i][2],uint16)
+					writeStream:write(self.faces[i][3],uint16)
+					writeStream:write(self.faces[i][4],uint16)
 				end
 			end
 			for i=1,self.morphTargetCount do	--morphTargetCount should be 1
@@ -959,7 +977,7 @@ class "GeometryStruct" {
 				if self.bVertexColor then
 					size = size+self.vertexCount*4
 				end
-				size = size+self.vertexCount*4*2*(self.TextureCount ~= 0 and self.TextureCount or ((self.bTextured and 1 or 0)+(self.bTextured2 and 1 or 0)))+self.triangleCount*2*4
+				size = size+self.vertexCount*4*2*(self.TextureCount ~= 0 and self.TextureCount or ((self.bTextured and 1 or 0)+(self.bTextured2 and 1 or 0)))+self.faceCount*2*4
 			end
 			for i=1,self.morphTargetCount do
 				size = size+4*6
@@ -983,8 +1001,11 @@ class "Geometry" {	typeID = 0x0F,
 	extension = false,
 	init = function(self,version)
 		self.struct = GeometryStruct():init(version)
+		self.struct.parent = self
 		self.materialList = MaterialList():init(version)
+		self.materialList.parent = self
 		self.extension = GeometryExtension():init(version)
+		self.extension.parent = self
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = Geometry.typeID
@@ -993,9 +1014,11 @@ class "Geometry" {	typeID = 0x0F,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = GeometryStruct()
+			self.struct.parent = self
 			self.struct:read(readStream)
 			--Read Material List
 			self.materialList = MaterialList()
+			self.materialList.parent = self
 			self.materialList:read(readStream)
 			--Read Extension
 			self.extension = GeometryExtension()
@@ -1027,6 +1050,7 @@ class "GeometryExtension" {
 	nightVertexColor = false,
 	effect2D = false,
 	skinPLG = false,
+	morphPLG = false,
 	init = function(self,version)
 		self.size = self:getSize(true)
 		self.version = version
@@ -1039,6 +1063,7 @@ class "GeometryExtension" {
 			local readSize = 0
 			repeat
 				nextSection = Section()
+				nextSection.parent = self
 				nextSection:read(readStream)
 				if nextSection.type == BinMeshPLG.typeID then
 					recastClass(nextSection,BinMeshPLG)
@@ -1055,6 +1080,9 @@ class "GeometryExtension" {
 				elseif nextSection.type == SkinPLG.typeID then
 					recastClass(nextSection,SkinPLG)
 					self.skinPLG = nextSection
+				elseif nextSection.type == MorphPLG.typeID then
+					recastClass(nextSection,MorphPLG)
+					self.morphPLG = nextSection
 				else
 					error("Unsupported Geometry Plugin "..nextSection.type)
 				end
@@ -1069,6 +1097,9 @@ class "GeometryExtension" {
 			end
 			if self.skinPLG then
 				self.skinPLG:write(writeStream)
+			end
+			if self.morphPLG then
+				self.morphPLG:write(writeStream)
 			end
 			if self.breakable then
 				self.breakable:write(writeStream)
@@ -1085,6 +1116,9 @@ class "GeometryExtension" {
 			if self.binMeshPLG then
 				size = size+self.binMeshPLG:getSize()
 			end
+			if self.morphPLG then
+				size = size+self.morphPLG:getSize()
+			end
 			if self.breakable then
 				size = size+self.breakable:getSize()
 			end
@@ -1100,6 +1134,9 @@ class "GeometryExtension" {
 		convert = function(self,targetVersion)
 			if self.binMeshPLG then
 				self.binMeshPLG:convert(targetVersion)
+			end
+			if self.morphPLG then
+				self.morphPLG:convert(targetVersion)
 			end
 			if self.skinPLG then
 				self.skinPLG:convert(targetVersion)
@@ -1187,6 +1224,7 @@ class "MaterialList" {	typeID = 0x08,
 	materials = false,
 	init = function(self,version)
 		self.struct = MaterialListStruct():init(version)
+		self.struct.parent = self
 		self.materials = {}
 		self.size = self:getSize(true)
 		self.version = version
@@ -1197,12 +1235,14 @@ class "MaterialList" {	typeID = 0x08,
 		read = function(self,readStream)
 			--Read Material List Struct
 			self.struct = MaterialListStruct()
+			self.struct.parent = self
 			self.struct:read(readStream)
 			--Read Materials
 			self.materials = {}
 			for matIndex=1,self.struct.materialCount do
 				--print("Reading Material",matIndex,readStream.readingPos)
 				self.materials[matIndex] = Material()
+				self.materials[matIndex].parent = self
 				self.materials[matIndex]:read(readStream)
 			end
 		end,
@@ -1227,7 +1267,36 @@ class "MaterialList" {	typeID = 0x08,
 				self.materials[matIndex]:convert(targetVersion)
 			end
 		end,
-	}
+	},
+	findMaterialByTexName = function(self,texName)
+		for i=1,#self.materials do
+			if self.materials[i].texture then
+				if self.materials[i].texture.textureName.string == texName then
+					return i
+				end
+			end
+		end
+		return false
+	end,
+	findMaterialByMaskName = function(self,maskName)
+		for i=1,#self.materials do
+			if self.materials[i].texture then
+				if self.materials[i].texture.maskName.string == maskName then
+					return i
+				end
+			end
+		end
+		return false
+	end,
+	findMaterialByColor = function(self,r,g,b,a)
+		for i=1,#self.materials do
+			local color = self.materials[i].struct.color
+			if color[1] == r and color[2] == g and color[3] == b and color[4] == a then
+				return i
+			end
+		end
+		return false
+	end,
 }
 
 class "MaterialStruct" {
@@ -1300,6 +1369,7 @@ class "MaterialExtension" {
 			local readSize = 0
 			while self.size > readSize do
 				local section = Section()
+				section.parent = self
 				section:read(readStream)
 				if section.type == ReflectionMaterial.typeID then
 					recastClass(section,ReflectionMaterial)
@@ -1367,7 +1437,9 @@ class "Material" {	typeID = 0x07,
 	extension = false,
 	init = function(self,ver)
 		self.struct = MaterialStruct():init(version)
+		self.struct.parent = self
 		self.extension = MaterialExtension():init(version)
+		self.extension.parent = self
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = Material.typeID
@@ -1376,14 +1448,17 @@ class "Material" {	typeID = 0x07,
 		read = function(self,readStream)
 			--Read Material Struct
 			self.struct = MaterialStruct()
+			self.struct.parent = self
 			self.struct:read(readStream)
 			if self.struct.isTextured then
 				--Read Texture
 				self.texture = Texture()
+				self.texture.parent = self
 				self.texture:read(readStream)
 			end
 			--Read Extension
 			self.extension = MaterialExtension()
+			self.extension.parent = self
 			self.extension:read(readStream)
 		end,
 		write = function(self,writeStream)
@@ -1506,9 +1581,13 @@ class "Texture" {	typeID = 0x06,
 	extension = false,
 	init = function(self,ver)
 		self.struct = TextureStruct():init(version)
+		self.struct.parent = self
 		self.textureName = String():init(version)
+		self.textureName.parent = self
 		self.maskName = String():init(version)
+		self.maskName.parent = self
 		self.extension = Extension():init(version)
+		self.extension.parent = self
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = Texture.typeID
@@ -1517,15 +1596,19 @@ class "Texture" {	typeID = 0x06,
 		read = function(self,readStream)
 			--Read Texture Struct
 			self.struct = TextureStruct()
+			self.struct.parent = self
 			self.struct:read(readStream)
 			--Read Texture Name
 			self.textureName = String()
+			self.textureName.parent = self
 			self.textureName:read(readStream)
 			--Read Mask Name
 			self.maskName = String()
+			self.maskName.parent = self
 			self.maskName:read(readStream)
 			--Read Extension
 			self.extension = Extension()
+			self.extension.parent = self
 			self.extension:read(readStream)
 		end,
 		write = function(self,writeStream)
@@ -1572,22 +1655,45 @@ class "String" {	typeID = 0x02,
 	}
 }
 
+class "MorphPLG" {	typeID = 0x105,
+	extend = "Section",
+	unused = false,
+	init = function(self,ver)
+		self.unused = 0
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = MorphPLG.typeID
+	end,
+	methodContinue = {
+		read = function(self,readStream)
+			self.unused = readStream:read(uint32)
+		end,
+		write = function(self,writeStream)
+			writeStream:write(self.unused,uint32)
+		end,
+		getSize = function(self)
+			local size = 4
+			self.size = size
+			return size
+		end,
+	}
+}
+
 class "BinMeshPLG" {	typeID = 0x50E,
 	extend = "Section",
 	faceType = false,
 	materialSplitCount = false,
-	faceCount = false,
+	vertexCount = false,
 	materialSplits = false,
 	methodContinue = {
 		read = function(self,readStream)
 			self.faceType = readStream:read(uint32)
 			self.materialSplitCount = readStream:read(uint32)
-			self.faceCount = readStream:read(uint32)
+			self.vertexCount = readStream:read(uint32)
 			self.materialSplits = {}
 			for i=1,self.materialSplitCount do
-				--Faces, MaterialIndex
-				self.materialSplits[i] = {readStream:read(uint32),readStream:read(uint32)}
-				self.materialSplits[i][3] = {}
+				--Faces, MaterialIndex, FaceList
+				self.materialSplits[i] = {readStream:read(uint32),readStream:read(uint32),{}}
 				for faceIndex=1, self.materialSplits[i][1] do
 					self.materialSplits[i][3][faceIndex] = readStream:read(uint32)	--Face Index
 				end
@@ -1595,10 +1701,17 @@ class "BinMeshPLG" {	typeID = 0x50E,
 		end,
 		write = function(self,writeStream)
 			writeStream:write(self.faceType,uint32)
+			self.materialSplitCount = #self.materialSplits
 			writeStream:write(self.materialSplitCount,uint32)
-			writeStream:write(self.faceCount,uint32)
+			local vertexCount = 0
+			for i=1,self.materialSplitCount do
+				vertexCount = vertexCount+#self.materialSplits[i][3]
+			end
+			self.vertexCount = vertexCount
+			writeStream:write(self.vertexCount,uint32)
 			for i=1,self.materialSplitCount do
 				--Faces, MaterialIndex
+				self.materialSplits[i][1] = #self.materialSplits[i][3]
 				writeStream:write(self.materialSplits[i][1],uint32)
 				writeStream:write(self.materialSplits[i][2],uint32)
 				for faceIndex=1,self.materialSplits[i][1] do
@@ -1625,7 +1738,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 	offsetVerteices = false,		--Unused
 	offsetCoords = false,			--Unused
 	offsetVetrexColor = false,		--Unused
-	triangleCount = false,
+	faceCount = false,
 	offsetVertexIndices = false,	--Unused
 	offsetMaterialIndices = false,	--Unused
 	materialCount = false,
@@ -1635,9 +1748,9 @@ class "Breakable" {	typeID = 0x0253F2FD,
 	offsetAmbientColors = false,	--Unused
 	
 	vertices = false,
-	triangles = false,
+	faces = false,
 	texCoords = false,
-	triangleMaterials = false,
+	faceMaterials = false,
 	materialTextureNames = false,
 	materialTextureMasks = false,
 	materialAmbientColor = false,
@@ -1650,8 +1763,8 @@ class "Breakable" {	typeID = 0x0253F2FD,
 				self.vertexCount = readStream:read(uint32)
 				self.offsetVerteices = readStream:read(uint32)			--Unused
 				self.offsetCoords = readStream:read(uint32)				--Unused
-				self.offsetVetrexLight = readStream:read(uint32)	--Unused
-				self.triangleCount = readStream:read(uint32)
+				self.offsetVetrexLight = readStream:read(uint32)		--Unused
+				self.faceCount = readStream:read(uint32)
 				self.offsetVertexIndices = readStream:read(uint32)		--Unused
 				self.offsetMaterialIndices = readStream:read(uint32)	--Unused
 				self.materialCount = readStream:read(uint32)
@@ -1675,12 +1788,12 @@ class "Breakable" {	typeID = 0x0253F2FD,
 					--r,g,b,a
 					self.vertexColor[i] = {readStream:read(uint8),readStream:read(uint8),readStream:read(uint8),readStream:read(uint8)}
 				end
-				self.triangles = {}
-				for i=1,self.triangleCount do
-					self.triangles[i] = {readStream:read(uint16),readStream:read(uint16),readStream:read(uint16)}
+				self.faces = {}
+				for i=1,self.faceCount do
+					self.faces[i] = {readStream:read(uint16),readStream:read(uint16),readStream:read(uint16)}
 				end
 				self.tiangleMaterials = {}
-				for i=1,self.triangleCount do
+				for i=1,self.faceCount do
 					self.tiangleMaterials[i] = readStream:read(uint16)
 				end
 				self.materialTextureNames = {}
@@ -1705,7 +1818,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 				writeStream:write(self.offsetVerteices,uint32)
 				writeStream:write(self.offsetCoords,uint32)
 				writeStream:write(self.offsetVetrexLight,uint32)
-				writeStream:write(self.triangleCount,uint32)
+				writeStream:write(self.faceCount,uint32)
 				writeStream:write(self.offsetVertexIndices,uint32)
 				writeStream:write(self.offsetMaterialIndices,uint32)
 				writeStream:write(self.materialCount,uint32)
@@ -1732,12 +1845,12 @@ class "Breakable" {	typeID = 0x0253F2FD,
 					writeStream:write(self.vertexColor[i][3],uint8)
 					writeStream:write(self.vertexColor[i][4],uint8)
 				end
-				for i=1,self.triangleCount do
-					writeStream:write(self.triangles[i][1],uint16)
-					writeStream:write(self.triangles[i][2],uint16)
-					writeStream:write(self.triangles[i][3],uint16)
+				for i=1,self.faceCount do
+					writeStream:write(self.faces[i][1],uint16)
+					writeStream:write(self.faces[i][2],uint16)
+					writeStream:write(self.faces[i][3],uint16)
 				end
-				for i=1,self.triangleCount do
+				for i=1,self.faceCount do
 					writeStream:write(self.tiangleMaterials[i],uint16)
 				end
 				for i=1,self.materialCount do
@@ -1824,6 +1937,7 @@ class "AtomicExtension" {
 			if self.size ~= 0 then
 				repeat
 					nextSection = Section()
+					nextSection.parent = self
 					nextSection:read(readStream)
 					if nextSection.type == Pipline.typeID then
 						recastClass(nextSection,Pipline)
@@ -1876,7 +1990,9 @@ class "Atomic" {	typeID = 0x14,
 	extension = false,
 	init = function(self,version)
 		self.struct = AtomicStruct():init(version)
+		self.struct.parent = self
 		self.extension = AtomicExtension():init(version)
+		self.extension.parent = self
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = Atomic.typeID
@@ -1885,8 +2001,10 @@ class "Atomic" {	typeID = 0x14,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = AtomicStruct()
+			self.struct.parent = self
 			self.struct:read(readStream)
 			self.extension = AtomicExtension()
+			self.extension.parent = self
 			self.extension:read(readStream)
 		end,
 		write = function(self,writeStream)
@@ -1953,6 +2071,7 @@ class "MaterialEffectPLG" {	typeID = 0x120,
 				self.useEnvMap = readStream:read(uint32) == 1
 				if self.useEnvMap then
 					self.texture = Texture()
+					self.texture.parent = self
 					self.texture:read(readStream)
 				end
 				self.endPadding = readStream:read(uint32)
@@ -2030,6 +2149,7 @@ class "UVAnimPLG" {	typeID = 0x135,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = UVAnimPLGStruct()
+			self.struct.parent = self
 			self.struct:read(readStream)
 		end,
 		write = function(self,writeStream)
@@ -2242,6 +2362,7 @@ class "DFFIO" {
 		self.clumps = {}
 		while self.readStream.readingPos+12 < #pathOrRaw do
 			local nextSection = Section()
+			nextSection.parent = self
 			nextSection:read(self.readStream)
 			self.version = nextSection.version
 			if nextSection.type == UVAnimDict.typeID then
@@ -2259,10 +2380,12 @@ class "DFFIO" {
 	end,
 	createClump = function(self,version)
 		self.clumps[#self.clumps+1] = Clump()
+		self.clumps[#self.clumps+1].parent = self
 		self.clumps[#self.clumps+1]:init(version or EnumRWVersion.GTASA)
 	end,
 	save = function(self,fileName)
 		self.writeStream = WriteStream()
+		self.writeStream.parent = self
 		for i=1,#self.clumps do
 			self.clumps[i]:write(self.writeStream)
 		end

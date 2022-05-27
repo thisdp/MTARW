@@ -8,6 +8,7 @@ local tableConcat = table.concat
 local strChar = string.char
 local mathHuge = math.huge
 
+--Table Utils
 function table.count(tabl)
 	local cnt = 0
 	for k,v in pairs(tabl) do
@@ -111,7 +112,60 @@ function table.find(tab,item)
 	end
 end
 
+--Math Utils
+local Rad2Deg = 57.29577951308238
+local Deg2Rad = 0.0174532925199433
+local cos,sin,atan2 = math.cos,math.sin,math.atan2
+function mul(m1,m2)
+	local m11,m12,m13,m21,m22,m23,m31,m32,m33
+	m11,m12,m13 = m1[1][1]*m2[1][1]+m1[1][2]*m2[2][1]+m1[1][3]*m2[3][1],m1[1][1]*m2[1][2]+m1[1][2]*m2[2][2]+m1[1][3]*m2[3][2],m1[1][1]*m2[1][3]+m1[1][2]*m2[2][3]+m1[1][3]*m2[3][3]
+	m21,m22,m23 = m1[1][1]*m2[1][1]+m1[1][2]*m2[2][1]+m1[1][3]*m2[3][1],m1[1][1]*m2[1][2]+m1[1][2]*m2[2][2]+m1[1][3]*m2[3][2],m1[1][1]*m2[1][3]+m1[1][2]*m2[2][3]+m1[1][3]*m2[3][3]
+	m31,m32,m33 = m1[3][1]*m2[1][1]+m1[3][2]*m2[2][1]+m1[3][3]*m2[3][1],m1[3][1]*m2[1][2]+m1[3][2]*m2[2][2]+m1[3][3]*m2[3][2],m1[3][1]*m2[1][3]+m1[3][2]*m2[2][3]+m1[3][3]*m2[3][3]
+	m1[1][1],m1[1][2],m1[1][3] = m11,m12,m13
+	m1[2][1],m1[2][2],m1[2][3] = m21,m22,m23
+	m1[3][1],m1[3][2],m1[3][3] = m31,m32,m33
+	return m1
+end
 
+eulerToRotationMatrix = function(rx,ry,rz)
+	local rx,ry,rz = rx*Deg2Rad,ry*Deg2Rad,rz*Deg2Rad
+	local cX,sX = cos(rx),sin(rx)
+	local cY,sY = cos(ry),sin(ry)
+	local cZ,sZ = cos(rz),sin(rz)
+	local matrixRX = {
+		{1,0,0},
+		{0,cX,-sX},
+		{0,sX,cX},
+	}
+    local matrixRY = {
+		{cY,0,sY},
+		{0,1,0},
+		{-sY,0,cY},
+	}
+	local matrixRZ = {
+		{cZ,-sZ,0},
+		{sZ,cZ,0},
+		{0,0,1},
+	}
+	rotMatrix = mul(mul(matrixRZ,matrixRY),matrixRX)
+	return rotMatrix
+end
+
+rotationMatrixToEuler = function(rotMatrix)
+    local cY = (rotMatrix[1][1]^2 + rotMatrix[2][1]^2)^0.5
+    if cY >= 1e-6 then
+        x = atan2( rotMatrix[3][2], rotMatrix[3][3])
+        y = atan2(-rotMatrix[3][1], cY)
+        z = atan2( rotMatrix[2][1], rotMatrix[1][1])
+    else
+        x = atan2(-rotMatrix[2][3], rotMatrix[2][2])
+        y = atan2(-rotMatrix[3][1], cY)
+        z = 0
+	end
+	return x*Rad2Deg,y*Rad2Deg,z*Rad2Deg
+end
+
+--Binary Utils
 local function Hex2Float(c)
 	if c == 0 then return 0.0 end
 	local b1,b2,b3,b4 = 0,0,0,0
@@ -183,6 +237,14 @@ end
 function bExtract(num,pos,length)
 	local v = num%(2^(pos+(length or 1)))/(2^pos)
 	return v-v%1
+end
+
+function bReplace(num,bit,pos)
+	local v = num%(2^(pos+1))/(2^pos)
+	local p = (v-v%1)
+	local v = (((p == 1) or (bit == 1)) == true) and 1 or 0
+	num = num-p*(2^pos)+v*(2^pos)
+	return num
 end
 
 local charNumTable = {}
@@ -319,7 +381,7 @@ class "WriteStream" {
 		self.writingPos = self.writingPos+addOffset
 		return bufferPos
 	end,
-	rewrite = function(self,bufferPos,data,dataType,additionLen)
+	overwrite = function(self,bufferPos,data,dataType,additionLen)
 		local dType = dataType.type
 		local buffer = self.buffer
 		if dType == "string" then
@@ -380,3 +442,7 @@ EnumPlatform = {
 	NUM_PLATFORMS = 13,
 	FOURCC_PS2 = 0x00325350,
 }
+
+function getRWVersion(ver)
+	
+end
