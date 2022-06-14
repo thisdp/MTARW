@@ -801,7 +801,6 @@ class "GeometryList" {	typeID = 0x1A,
 
 class "GeometryStruct" {
 	extend = "Struct",
-	flags = false,
 	trangleCount = false,
 	vertexCount = false,
 	morphTargetCount = false,
@@ -831,7 +830,6 @@ class "GeometryStruct" {
 	TextureCount = false,
 	--
 	init = function(self,version)
-		self.flags = 0
 		self.faceCount = 0
 		self.vertexCount = 0
 		self.morphTargetCount = 1
@@ -845,18 +843,18 @@ class "GeometryStruct" {
 	end,
 	methodContinue = {
 		read = function(self,readStream)
-			self.flags = readStream:read(uint32)
+			local flags = readStream:read(uint16)
 			--Extract Flags
-			self.bTristrip = bExtract(self.flags,0) == 1
-			self.bPosition = bExtract(self.flags,1) == 1
-			self.bTextured = bExtract(self.flags,2) == 1
-			self.bVertexColor = bExtract(self.flags,3) == 1
-			self.bNormal = bExtract(self.flags,4) == 1
-			self.bLight = bExtract(self.flags,5) == 1
-			self.bModulateMaterialColor = bExtract(self.flags,6) == 1
-			self.bTextured2 = bExtract(self.flags,7) == 1
-			self.bNative = bExtract(self.flags,24) == 1
-			self.TextureCount = bExtract(self.flags,16,8)
+			self.bTristrip = bExtract(flags,0) == 1
+			self.bPosition = bExtract(flags,1) == 1
+			self.bTextured = bExtract(flags,2) == 1
+			self.bVertexColor = bExtract(flags,3) == 1
+			self.bNormal = bExtract(flags,4) == 1
+			self.bLight = bExtract(flags,5) == 1
+			self.bModulateMaterialColor = bExtract(flags,6) == 1
+			self.bTextured2 = bExtract(flags,7) == 1
+			self.TextureCount = readStream:read(uint8)
+			self.bNative = (readStream:read(uint8)%2) == 1
 			--Read face count
 			self.faceCount = readStream:read(uint32)
 			self.vertexCount = readStream:read(uint32)
@@ -871,9 +869,9 @@ class "GeometryStruct" {
 			if not self.bNative then
 				if self.bVertexColor then
 					--R,G,B,A
-					self.vertexColor = {}
+					self.vertexColors = {}
 					for vertices=1, self.vertexCount do
-						self.vertexColor[vertices] = {readStream:read(uint8),readStream:read(uint8),readStream:read(uint8),readStream:read(uint8)}
+						self.vertexColors[vertices] = {readStream:read(uint8),readStream:read(uint8),readStream:read(uint8),readStream:read(uint8)}
 					end
 				end
 				self.texCoords = {}
@@ -910,7 +908,17 @@ class "GeometryStruct" {
 			--end
 		end,
 		write = function(self,writeStream)
-			writeStream:write(self.flags,uint32)
+			local flags = bAssemble(
+				self.bTristrip,
+				self.bPosition,
+				self.bTextured,
+				self.bVertexColor,
+				self.bNormal,
+				self.bLight,
+				self.bModulateMaterialColor,
+				self.bTextured2
+			)+(self.bNative and 1 or 0)*2^24+self.TextureCount*2^16
+			writeStream:write(flags,uint32)
 			writeStream:write(self.faceCount,uint32)
 			writeStream:write(self.vertexCount,uint32)
 			writeStream:write(self.morphTargetCount,uint32)
@@ -923,10 +931,10 @@ class "GeometryStruct" {
 				if self.bVertexColor then
 					--R,G,B,A
 					for vertices=1, self.vertexCount do
-						writeStream:write(self.vertexColor[vertices][1],uint8)
-						writeStream:write(self.vertexColor[vertices][2],uint8)
-						writeStream:write(self.vertexColor[vertices][3],uint8)
-						writeStream:write(self.vertexColor[vertices][4],uint8)
+						writeStream:write(self.vertexColors[vertices][1],uint8)
+						writeStream:write(self.vertexColors[vertices][2],uint8)
+						writeStream:write(self.vertexColors[vertices][3],uint8)
+						writeStream:write(self.vertexColors[vertices][4],uint8)
 					end
 				end
 				for i=1,(self.TextureCount ~= 0 and self.TextureCount or ((self.bTextured and 1 or 0)+(self.bTextured2 and 1 or 0)) ) do
@@ -1040,7 +1048,122 @@ class "Geometry" {	typeID = 0x0F,
 			self.materialList:convert(targetVersion)
 			self.extension:convert(targetVersion)
 		end,
-	}
+	},
+	mergeGeometry = function(self,target,clone)
+		--Compare flag (maybe will be implemented soon)
+		if not self.struct.bTristrip == target.struct.bTristrip then return false end
+		if not self.struct.bPosition == target.struct.bPosition then return false end
+		if not self.struct.bTextured == target.struct.bTextured then return false end
+		if not self.struct.bVertexColor == target.struct.bVertexColor then return false end
+		if not self.struct.bNormal == target.struct.bNormal then return false end
+		if not self.struct.bLight == target.struct.bLight then return false end
+		if not self.struct.bModulateMaterialColor == target.struct.bModulateMaterialColor then return false end
+		if not self.struct.bTextured2 == target.struct.bTextured2 then return false end
+		if not self.struct.bNative == target.struct.bNative then return false end
+		if not self.struct.hasNormals == target.struct.hasNormals then return false end
+		if clone then	--Clone a new geometry table?
+			local oldSelf = self
+			self = oopUtil.deepCopy(self,self.parent)
+		end
+		
+		--Merge Struct
+		--Add face/vertex count
+		local targetVertices = target.struct.vertices or {}
+		local selfVertices = self.struct.vertices or {}
+		local targetVertexCount = #targetVertices
+		local selfVertexCount = #selfVertices
+		local targetFaceIndex,selfFaceIndex
+		
+		if not self.struct.bNative then
+			if self.struct.bVertexColor then
+				local targetVertexColors = target.struct.vertexColors
+				local selfVertexColors = self.struct.vertexColors
+				local selfVertexColorIndex = #selfVertexColors
+				for i=1,#targetVertices do	--Copy vertex colors
+					selfVertexColors[selfVertexColorIndex+i] = {targetVertexColors[i][1],targetVertexColors[i][2],targetVertexColors[i][3],targetVertexColors[i][4]}
+				end
+			end
+			for i=1,(self.struct.TextureCount ~= 0 and self.struct.TextureCount or ((self.struct.bTextured and 1 or 0)+(self.struct.bTextured2 and 1 or 0)) ) do
+				--U,V
+				local selfTexCoords = self.struct.texCoords[i]
+				local targetTexCoords = target.struct.texCoords[i]
+				local selfTexCoordIndex = #selfTexCoords
+				for vertices = 1,#targetVertices do	--Copy texture coordinates
+					selfTexCoords[selfTexCoordIndex+vertices] = {targetTexCoords[vertices][1],targetTexCoords[vertices][2]}
+				end
+			end
+			
+			local targetFaces = target.struct.faces
+			local selfFaces = self.struct.faces
+			selfFaceIndex = #self.struct.faces
+			for i=1,#targetFaces do	--Copy faces
+				selfFaces[i+selfFaceIndex] = {targetFaces[i][1]+selfVertexCount,targetFaces[i][2]+selfVertexCount,targetFaces[i][3],targetFaces[i][4]+selfVertexCount}
+			end
+		end
+		--for i=1,self.morphTargetCount do	--morphTargetCount must be 1
+		--X,Y,Z,Radius
+		--self.boundingSphere
+		self.struct.hasVertices = self.struct.hasVertices or target.struct.hasVertices
+		--self.struct.hasNormals = self.struct.hasNormals or target.struct.hasNormals
+		if self.struct.hasVertices then
+			self.struct.vertices = self.struct.vertices or {}
+			local selfVertices = self.struct.vertices
+			for vertex=1,targetVertexCount do
+				selfVertices[vertex+selfVertexCount] = {targetVertices[vertex][1],targetVertices[vertex][2],targetVertices[vertex][3]}
+			end
+		end
+		if self.struct.hasNormals then
+			self.struct.normals = self.struct.normals or {}
+			local selfNormals,targetNormals = self.struct.normals,target.struct.normals
+			for vertex=1,targetVertexCount do
+				selfNormals[vertex+selfVertexCount] = {targetNormals[vertex][1],targetNormals[vertex][2],targetNormals[vertex][3]}
+			end
+		end
+		self.struct.faceCount = #self.struct.faces
+		self.struct.vertexCount = #self.struct.vertices
+		--end
+		
+		--Merge Material
+		local matListToMerge = target.materialList
+		local selfMatListIndex = matListToMerge.struct.materialCount
+		for i=1,matListToMerge.struct.materialCount do
+			self.materialList.struct.materialIndices[i+self.materialList.struct.materialCount] = matListToMerge.struct.materialIndices[i]
+			self.materialList.materials[i+self.materialList.struct.materialCount] = matListToMerge.materials[i]
+		end
+		self.materialList.struct.materialCount = #self.materialList.struct.materialIndices
+		--Merge Extension
+		local selfExtension = self.extension
+		local targetExtension = target.extension
+		if selfExtension.binMeshPLG and targetExtension.binMeshPLG then
+			if selfExtension.binMeshPLG.faceType == targetExtension.binMeshPLG.faceType then --FaceType should be the same
+				local selfBinMesh = selfExtension.binMeshPLG
+				local targetBinMesh = targetExtension.binMeshPLG
+				
+				for i=1,targetBinMesh.materialSplitCount do
+					--Faces, MaterialIndex, FaceList
+					local matIndex = selfBinMesh.materialSplitCount+i
+					selfBinMesh.materialSplits[matIndex] = {targetBinMesh.materialSplits[i][1],selfMatListIndex+targetBinMesh.materialSplits[i][2],{}}
+					for faceIndex=1,targetBinMesh.materialSplits[i][1] do
+						selfBinMesh.materialSplits[matIndex][3][faceIndex] = targetBinMesh.materialSplits[i][3][faceIndex]+selfFaceIndex	--Face Index
+					end
+				end
+				selfBinMesh.materialSplitCount = selfBinMesh.materialSplitCount+targetBinMesh.materialSplitCount
+				selfBinMesh.vertexCount = selfBinMesh.vertexCount+targetBinMesh.vertexCount
+			end
+		end
+		
+		if selfExtension.nightVertexColor and targetExtension.nightVertexColor then
+			if selfExtension.nightVertexColor.hasColor == targetExtension.nightVertexColor.hasColor then	--Currently, Only merge when both have night vertex color
+				local targetNVC = targetExtension.nightVertexColor.colors
+				local selfNVC = selfExtension.nightVertexColor.colors
+				local selfNVCCount = #selfNVC
+				for i=1,#targetNVC do
+					selfNVC[i+selfNVCCount] = {targetNVC[i][1],targetNVC[i][2],targetNVC[i][3],targetNVC[i][4]}
+				end
+				iprint(#selfExtension.nightVertexColor.colors)
+			end
+		end
+	end,
 }
 
 class "GeometryExtension" {
@@ -1092,64 +1215,30 @@ class "GeometryExtension" {
 			until readSize >= self.size
 		end,
 		write = function(self,writeStream)
-			if self.binMeshPLG then
-				self.binMeshPLG:write(writeStream)
-			end
-			if self.skinPLG then
-				self.skinPLG:write(writeStream)
-			end
-			if self.morphPLG then
-				self.morphPLG:write(writeStream)
-			end
-			if self.breakable then
-				self.breakable:write(writeStream)
-			end
-			if self.nightVertexColor then
-				self.nightVertexColor:write(writeStream)
-			end
-			if self.effect2D then
-				self.effect2D:write(writeStream)
-			end
+			if self.binMeshPLG then self.binMeshPLG:write(writeStream) end
+			if self.skinPLG then self.skinPLG:write(writeStream) end
+			if self.morphPLG then self.morphPLG:write(writeStream) end
+			if self.breakable then self.breakable:write(writeStream) end
+			if self.nightVertexColor then self.nightVertexColor:write(writeStream) end
+			if self.effect2D then self.effect2D:write(writeStream) end
 		end,
 		getSize = function(self)
 			local size = 0
-			if self.binMeshPLG then
-				size = size+self.binMeshPLG:getSize()
-			end
-			if self.morphPLG then
-				size = size+self.morphPLG:getSize()
-			end
-			if self.breakable then
-				size = size+self.breakable:getSize()
-			end
-			if self.nightVertexColor then
-				size = size+self.nightVertexColor:getSize()
-			end
-			if self.effect2D then
-				size = size+self.effect2D:getSize()
-			end
+			if self.binMeshPLG then size = size+self.binMeshPLG:getSize() end
+			if self.morphPLG then size = size+self.morphPLG:getSize() end
+			if self.breakable then size = size+self.breakable:getSize() end
+			if self.nightVertexColor then size = size+self.nightVertexColor:getSize() end
+			if self.effect2D then size = size+self.effect2D:getSize() end
 			self.size = size
 			return size
 		end,
 		convert = function(self,targetVersion)
-			if self.binMeshPLG then
-				self.binMeshPLG:convert(targetVersion)
-			end
-			if self.morphPLG then
-				self.morphPLG:convert(targetVersion)
-			end
-			if self.skinPLG then
-				self.skinPLG:convert(targetVersion)
-			end
-			if self.breakable then
-				self.breakable:convert(targetVersion)
-			end
-			if self.nightVertexColor then
-				self.nightVertexColor:convert(targetVersion)
-			end
-			if self.effect2D then
-				self.effect2D:convert(targetVersion)
-			end
+			if self.binMeshPLG then self.binMeshPLG:convert(targetVersion) end
+			if self.morphPLG then self.morphPLG:convert(targetVersion) end
+			if self.skinPLG then self.skinPLG:convert(targetVersion) end
+			if self.breakable then self.breakable:convert(targetVersion) end
+			if self.nightVertexColor then self.nightVertexColor:convert(targetVersion) end
+			if self.effect2D then self.effect2D:convert(targetVersion) end
 		end,
 	}
 }
@@ -1174,10 +1263,12 @@ class "NightVertexColor" {	typeID = 0x253F2F9,
 				writeStream:write(self.colors[i][3],uint8)
 				writeStream:write(self.colors[i][4],uint8)
 			end
+			
 		end,
 		getSize = function(self)
-			local size = 4*#self.colors
+			local size = 4*#self.colors+4
 			self.size = size
+			iprint(#self.colors,self.size)
 			return size
 		end,
 	}
@@ -1750,6 +1841,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 	vertices = false,
 	faces = false,
 	texCoords = false,
+	vertexColors = false,
 	faceMaterials = false,
 	materialTextureNames = false,
 	materialTextureMasks = false,
@@ -1783,10 +1875,10 @@ class "Breakable" {	typeID = 0x0253F2FD,
 					--u,v
 					self.texCoords[i] = {readStream:read(float),readStream:read(float)}
 				end
-				self.vertexColor = {}
+				self.vertexColors = {}
 				for i=1,self.vertexCount do
 					--r,g,b,a
-					self.vertexColor[i] = {readStream:read(uint8),readStream:read(uint8),readStream:read(uint8),readStream:read(uint8)}
+					self.vertexColors[i] = {readStream:read(uint8),readStream:read(uint8),readStream:read(uint8),readStream:read(uint8)}
 				end
 				self.faces = {}
 				for i=1,self.faceCount do
@@ -1840,10 +1932,10 @@ class "Breakable" {	typeID = 0x0253F2FD,
 				end
 				for i=1,self.vertexCount do
 					--r,g,b,a
-					writeStream:write(self.vertexColor[i][1],uint8)
-					writeStream:write(self.vertexColor[i][2],uint8)
-					writeStream:write(self.vertexColor[i][3],uint8)
-					writeStream:write(self.vertexColor[i][4],uint8)
+					writeStream:write(self.vertexColors[i][1],uint8)
+					writeStream:write(self.vertexColors[i][2],uint8)
+					writeStream:write(self.vertexColors[i][3],uint8)
+					writeStream:write(self.vertexColors[i][4],uint8)
 				end
 				for i=1,self.faceCount do
 					writeStream:write(self.faces[i][1],uint16)
@@ -2406,5 +2498,10 @@ class "DFFIO" {
 			self.clumps[i]:convert(EnumRWVersion[target:upper()])
 		end
 		return true
+	end,
+	update = function(self)
+		for i=1,#self.clumps do
+			self.clumps[i]:getSize()
+		end
 	end,
 }

@@ -44,12 +44,16 @@ oopUtil = {
 		end
 		return keyTable,valueTable
 	end;
-	deepCopy = function(obj)
+	deepCopy = function(obj,parent)
 		local function Func(obj)
 			if type(obj) ~= "table" then return obj end
 			local NewTable = {}
 			for k,v in pairs(obj) do
-				NewTable[Func(k)] = Func(v)
+				if k == "parent" then
+					NewTable[Func(k)] = parent
+				else
+					NewTable[Func(k)] = Func(v,obj)
+				end
 			end
 			return NewTable
 		end

@@ -25,7 +25,7 @@ function table.inspect(theTable,appendTable,depth,arrayMark)
 		if #theTable == table.count(theTable) then	--Array
 			for key,value in ipairs(theTable) do
 				local valueType = type(value)
-				if valueType ~= "function" then
+				if valueType ~= "function" and key ~= "parent" then
 					if valueType == "table" then
 						appendTable[#appendTable+1] = "\n"
 						appendTable[#appendTable+1] = strRep("	",depth+1)
@@ -36,7 +36,7 @@ function table.inspect(theTable,appendTable,depth,arrayMark)
 		else
 			appendTable[#appendTable+1] = "\n"
 			for key,value in pairs(theTable) do
-				if type(value) ~= "function" then
+				if type(value) ~= "function" and key ~= "parent" then
 					appendTable[#appendTable+1] = strRep("	",depth+1)
 					appendTable[#appendTable+1] = "["
 					appendTable[#appendTable+1] = tostring(key)
@@ -152,7 +152,7 @@ eulerToRotationMatrix = function(rx,ry,rz)
 end
 
 rotationMatrixToEuler = function(rotMatrix)
-    local cY = (rotMatrix[1][1]^2 + rotMatrix[2][1]^2)^0.5
+    local cY = (rotMatrix[1][1]*rotMatrix[1][1] + rotMatrix[2][1]*rotMatrix[2][1])^0.5
     if cY >= 1e-6 then
         x = atan2( rotMatrix[3][2], rotMatrix[3][3])
         y = atan2(-rotMatrix[3][1], cY)
@@ -180,14 +180,9 @@ local function Hex2Float(c)
 	c = c - b3*0x100
 	b4 = c
 	b4 = b4-b4%1
-	local sign,temp = b1>0x7F,b2/0x80
+	local sign,temp = (b1>0x7F) and -1 or 1,b2/0x80
 	local expo = b1%0x80*0x2+temp-temp%1
 	local mant = (b2%0x80*0x100+b3)*0x100+b4
-	if sign then
-		sign = -1
-	else
-		sign = 1
-	end
 	local n
 	if mant == 0 and expo == 0 then
 		n = sign * 0.0
@@ -232,6 +227,15 @@ local function Float2Hex(n)
 		local hexValue = hext1*0x1000000+hext2*0x10000+hext3*0x100+hext4
 		return hexValue-hexValue%1
 	end
+end
+
+function bAssemble(...)
+	local size = select("#",...)
+	local result = 0
+	for i=1,size do
+		result = result+((select(i,...) and 1 or 0)*2^(i-1))
+	end
+	return result
 end
 
 function bExtract(num,pos,length)
