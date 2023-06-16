@@ -580,27 +580,21 @@ class "TSurface" {
 	light = nil,
 	init = function(self,version)
 		self.material = 0
-		if version == "COLL" then
-			self.flags = 0
-			self.brightness = 0
-		end
+		self.flags = 0
+		self.brightness = 0
 		self.light = 0
 		return self
 	end,
 	read = function(self,readStream,colVersion)
 		self.material = readStream:read(uint8)
-		if colVersion == "COLL" then
-			self.flags = readStream:read(uint8)
-			self.brightness = readStream:read(uint8)
-		end
+		self.flags = readStream:read(uint8)
+		self.brightness = readStream:read(uint8)
 		self.light = readStream:read(uint8)
 	end,
 	write = function(self,writeStream,colVersion)
 		writeStream:write(self.material,uint8)
-		if colVersion == "COLL" then
-			writeStream:write(self.flags or 0,uint8)
-			writeStream:write(self.brightness or 255,uint8)
-		end
+		writeStream:write(self.flags or 0,uint8)
+		writeStream:write(self.brightness or 255,uint8)
 		writeStream:write(self.light,uint8)
 	end,
 	getSize = function()
