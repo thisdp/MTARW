@@ -706,6 +706,8 @@ class "TFace" {
 			writeStream:write(self.a,uint16)
 			writeStream:write(self.b,uint16)
 			writeStream:write(self.c,uint16)
+			writeStream:write(self.material,uint8)
+			writeStream:write(self.light,uint8)
 		end
 		self.surface:write(writeStream,version)	--Non-Standard TSurface
 	end,
