@@ -282,13 +282,7 @@ class "TextureNativeStruct" {
 				local size,data
 				for i=1,self.mipmapLevels do
 					size = readStream:read(uint32)
-					if i <= self.mipmapLevels then
-						--data = raster->lock(i, Raster::LOCKWRITE|Raster::LOCKNOFETCH);
-						data = readStream:read(bytes,size)
-						--raster->unlock(i);
-					else
-						data = readStream:read(bytes,size)
-					end
+					data = readStream:read(bytes,size)
 					self.textures[i] = data
 				end
 			end
