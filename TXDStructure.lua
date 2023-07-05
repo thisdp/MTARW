@@ -288,6 +288,7 @@ class "TextureNativeStruct" {
 			end
 		end,
 		write = function(self,writeStream)
+			writeStream:write(self.platform,uint32)
 			if self.platform == EnumPlatform.PLATFORM_D3D9 then
 				writeStream:write(self.filterAddressing,uint32)
 				writeStream:write(self.name,char,32)
