@@ -1492,6 +1492,9 @@ class "MaterialExtension" {
 			if self.materialEffect then
 				self.materialEffect:write(writeStream)
 			end
+			if self.uvAnimation then
+				self.uvAnimation:write(writeStream)
+			end
 		end,
 		getSize = function(self)
 			local size = 0
