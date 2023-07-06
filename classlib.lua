@@ -199,7 +199,6 @@ class "Section" {
 	type = 			false,
 	size = 			false,
 	version = 		false,
-	reader =		false,
 	sizeVersion = 	false,-- Record size change
 	read = function(self,readStream)
 		if self.version then return end	--Already read
