@@ -1893,9 +1893,9 @@ class "Breakable" {	typeID = 0x0253F2FD,
 				for i=1,self.faceCount do
 					self.faces[i] = {readStream:read(uint16),readStream:read(uint16),readStream:read(uint16)}
 				end
-				self.tiangleMaterials = {}
+				self.triangleMaterials = {}
 				for i=1,self.faceCount do
-					self.tiangleMaterials[i] = readStream:read(uint16)
+					self.triangleMaterials[i] = readStream:read(uint16)
 				end
 				self.materialTextureNames = {}
 				for i=1,self.materialCount do
@@ -1952,7 +1952,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 					writeStream:write(self.faces[i][3],uint16)
 				end
 				for i=1,self.faceCount do
-					writeStream:write(self.tiangleMaterials[i],uint16)
+					writeStream:write(self.triangleMaterials[i],uint16)
 				end
 				for i=1,self.materialCount do
 					writeStream:write(self.materialTextureNames[i],char,32)
