@@ -2480,9 +2480,10 @@ class "DFFIO" {
 		end
 	end,
 	createClump = function(self,version)
-		self.clumps[#self.clumps+1] = Clump()
-		self.clumps[#self.clumps+1].parent = self
-		self.clumps[#self.clumps+1]:init(version or EnumRWVersion.GTASA)
+		local clump = Clump()
+		clump.parent = self
+		clump:init(version or EnumRWVersion.GTASA)
+		self.clumps[#self.clumps+1] = clump
 	end,
 	save = function(self,fileName)
 		self.writeStream = WriteStream()
