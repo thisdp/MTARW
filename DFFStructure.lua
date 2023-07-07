@@ -244,7 +244,7 @@ class "Clump" {	typeID = 0x10,
 	end,
 	createAtomic = function(self)
 		local atomic = Atomic():init(self.version)
-		self.atomic.parent = self
+		atomic.parent = self
 		self.struct.atomicCount = self.struct.atomicCount+1
 		self.atomics[self.struct.atomicCount] = atomic
 		self.size = self:getSize(true)
@@ -2047,7 +2047,7 @@ class "AtomicExtension" {
 						recastClass(nextSection,MaterialEffectPLG)
 						self.materialEffect = nextSection
 					else
-						error("Unsupported Automic Plugin "..nextSection.type)
+						error("Unsupported Atomic Plugin "..nextSection.type)
 					end
 					nextSection.parent = self
 					nextSection:read(readStream)
