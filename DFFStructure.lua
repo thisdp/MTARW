@@ -1509,6 +1509,9 @@ class "MaterialExtension" {
 			if self.materialEffect then
 				size = size+self.materialEffect:getSize()
 			end
+			if self.uvAnimation then
+				size = size+self.uvAnimation:getSize()
+			end
 			self.size = size
 			return size
 		end,
@@ -1521,6 +1524,9 @@ class "MaterialExtension" {
 			end
 			if self.materialEffect then
 				self.materialEffect:convert(targetVersion)
+			end
+			if self.uvAnimation then
+				self.uvAnimation:convert(targetVersion)
 			end
 		end,
 	}
