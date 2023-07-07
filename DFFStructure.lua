@@ -804,7 +804,6 @@ class "GeometryList" {	typeID = 0x1A,
 
 class "GeometryStruct" {
 	extend = "Struct",
-	trangleCount = false,
 	vertexCount = false,
 	morphTargetCount = false,
 	--version < EnumRWVersion.GTASA
