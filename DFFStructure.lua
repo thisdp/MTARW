@@ -672,6 +672,9 @@ class "FrameListExtension" {
 		end,
 		getSize = function(self)
 			local size = self.frame:getSize()
+			if self.HAnimPLG then
+				size = size+self.HAnimPLG:getSize()
+			end
 			self.size = size
 			return size
 		end,
