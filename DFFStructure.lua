@@ -672,6 +672,9 @@ class "FrameListExtension" {
 		end,
 		getSize = function(self)
 			local size = self.frame:getSize()
+			if self.HAnimPLG then
+				size = size+self.HAnimPLG:getSize()
+			end
 			self.size = size
 			return size
 		end,
@@ -801,7 +804,6 @@ class "GeometryList" {	typeID = 0x1A,
 
 class "GeometryStruct" {
 	extend = "Struct",
-	trangleCount = false,
 	vertexCount = false,
 	morphTargetCount = false,
 	--version < EnumRWVersion.GTASA
