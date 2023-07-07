@@ -2323,7 +2323,7 @@ class "SkinPLG" {	typeID = 0x116,
 	boneCount = false,
 	usedBoneCount = false,
 	maxVertexWeights = false,
-	usedBoneIndice = false,
+	usedBoneIndices = false,
 	boneVertices = false,
 	boneVertexWeights = false,
 	bones = false,
@@ -2333,9 +2333,9 @@ class "SkinPLG" {	typeID = 0x116,
 			self.usedBoneCount = readStream:read(uint8)
 			self.maxVertexWeights = readStream:read(uint8)
 			readStream:read(uint8)	--Padding
-			self.usedBoneIndice = {}
+			self.usedBoneIndices = {}
 			for i=1,self.usedBoneCount do
-				self.usedBoneIndice[i] = readStream:read(uint8)
+				self.usedBoneIndices[i] = readStream:read(uint8)
 			end
 			self.boneVertices = {}
 			for i=1,self.parent.parent.struct.vertexCount do
@@ -2371,7 +2371,7 @@ class "SkinPLG" {	typeID = 0x116,
 			writeStream:write(self.maxVertexWeights,uint8)
 			writeStream:write(0,uint8)	--Padding
 			for i=1,self.usedBoneCount do
-				writeStream:write(self.usedBoneIndice[i],uint8)
+				writeStream:write(self.usedBoneIndices[i],uint8)
 			end
 			for i=1,self.parent.parent.struct.vertexCount do
 				writeStream:write(self.boneVertices[i][1],uint8)
