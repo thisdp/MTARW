@@ -1839,7 +1839,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 	vertexCount = false,
 	offsetVertices = false,		--Unused
 	offsetCoords = false,			--Unused
-	offsetVetrexColor = false,		--Unused
+	offsetVertexLight = false,		--Unused
 	faceCount = false,
 	offsetVertexIndices = false,	--Unused
 	offsetMaterialIndices = false,	--Unused
@@ -1853,10 +1853,8 @@ class "Breakable" {	typeID = 0x0253F2FD,
 	faces = false,
 	texCoords = false,
 	vertexColors = false,
-	faceMaterials = false,
 	materialTextureNames = false,
 	materialTextureMasks = false,
-	materialAmbientColor = false,
 
 	methodContinue = {
 		read = function(self,readStream)
@@ -1866,7 +1864,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 				self.vertexCount = readStream:read(uint32)
 				self.offsetVertices = readStream:read(uint32)			--Unused
 				self.offsetCoords = readStream:read(uint32)				--Unused
-				self.offsetVetrexLight = readStream:read(uint32)		--Unused
+				self.offsetVertexLight = readStream:read(uint32)		--Unused
 				self.faceCount = readStream:read(uint32)
 				self.offsetVertexIndices = readStream:read(uint32)		--Unused
 				self.offsetMaterialIndices = readStream:read(uint32)	--Unused
@@ -1895,9 +1893,9 @@ class "Breakable" {	typeID = 0x0253F2FD,
 				for i=1,self.faceCount do
 					self.faces[i] = {readStream:read(uint16),readStream:read(uint16),readStream:read(uint16)}
 				end
-				self.tiangleMaterials = {}
+				self.triangleMaterials = {}
 				for i=1,self.faceCount do
-					self.tiangleMaterials[i] = readStream:read(uint16)
+					self.triangleMaterials[i] = readStream:read(uint16)
 				end
 				self.materialTextureNames = {}
 				for i=1,self.materialCount do
@@ -1920,7 +1918,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 				writeStream:write(self.vertexCount,uint32)
 				writeStream:write(self.offsetVertices,uint32)
 				writeStream:write(self.offsetCoords,uint32)
-				writeStream:write(self.offsetVetrexLight,uint32)
+				writeStream:write(self.offsetVertexLight,uint32)
 				writeStream:write(self.faceCount,uint32)
 				writeStream:write(self.offsetVertexIndices,uint32)
 				writeStream:write(self.offsetMaterialIndices,uint32)
@@ -1954,7 +1952,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 					writeStream:write(self.faces[i][3],uint16)
 				end
 				for i=1,self.faceCount do
-					writeStream:write(self.tiangleMaterials[i],uint16)
+					writeStream:write(self.triangleMaterials[i],uint16)
 				end
 				for i=1,self.materialCount do
 					writeStream:write(self.materialTextureNames[i],char,32)
@@ -2325,7 +2323,7 @@ class "SkinPLG" {	typeID = 0x116,
 	boneCount = false,
 	usedBoneCount = false,
 	maxVertexWeights = false,
-	usedBoneIndice = false,
+	usedBoneIndices = false,
 	boneVertices = false,
 	boneVertexWeights = false,
 	bones = false,
@@ -2335,9 +2333,9 @@ class "SkinPLG" {	typeID = 0x116,
 			self.usedBoneCount = readStream:read(uint8)
 			self.maxVertexWeights = readStream:read(uint8)
 			readStream:read(uint8)	--Padding
-			self.usedBoneIndice = {}
+			self.usedBoneIndices = {}
 			for i=1,self.usedBoneCount do
-				self.usedBoneIndice[i] = readStream:read(uint8)
+				self.usedBoneIndices[i] = readStream:read(uint8)
 			end
 			self.boneVertices = {}
 			for i=1,self.parent.parent.struct.vertexCount do
@@ -2373,7 +2371,7 @@ class "SkinPLG" {	typeID = 0x116,
 			writeStream:write(self.maxVertexWeights,uint8)
 			writeStream:write(0,uint8)	--Padding
 			for i=1,self.usedBoneCount do
-				writeStream:write(self.usedBoneIndice[i],uint8)
+				writeStream:write(self.usedBoneIndices[i],uint8)
 			end
 			for i=1,self.parent.parent.struct.vertexCount do
 				writeStream:write(self.boneVertices[i][1],uint8)
@@ -2418,7 +2416,7 @@ class "SkinPLG" {	typeID = 0x116,
 		end,
 		getSize = function(self)
 			local size = 4+self.usedBoneCount+self.parent.parent.struct.vertexCount*5
-			if size.version == EnumRWVersion.GTASA then
+			if self.version == EnumRWVersion.GTASA then
 				size = size+self.boneCount*16*4+3*4
 			else
 				size = size+self.boneCount*17*4
