@@ -1405,7 +1405,7 @@ class "MaterialStruct" {
 		self.flags = 0
 		self.color = {255,255,255,255}
 		self.unused = 0
-		self.isTextured = 0
+		self.isTextured = false
 		self.ambient = 1
 		self.specular = 1
 		self.diffuse = 1
@@ -1509,6 +1509,9 @@ class "MaterialExtension" {
 			if self.materialEffect then
 				size = size+self.materialEffect:getSize()
 			end
+			if self.uvAnimation then
+				size = size+self.uvAnimation:getSize()
+			end
 			self.size = size
 			return size
 		end,
@@ -1521,6 +1524,9 @@ class "MaterialExtension" {
 			end
 			if self.materialEffect then
 				self.materialEffect:convert(targetVersion)
+			end
+			if self.uvAnimation then
+				self.uvAnimation:convert(targetVersion)
 			end
 		end,
 	}
@@ -1831,7 +1837,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 	flags = false,
 	positionRule = false,
 	vertexCount = false,
-	offsetVerteices = false,		--Unused
+	offsetVertices = false,		--Unused
 	offsetCoords = false,			--Unused
 	offsetVetrexColor = false,		--Unused
 	faceCount = false,
@@ -1858,7 +1864,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 			if self.flags ~= 0 then
 				self.positionRule = readStream:read(uint32)
 				self.vertexCount = readStream:read(uint32)
-				self.offsetVerteices = readStream:read(uint32)			--Unused
+				self.offsetVertices = readStream:read(uint32)			--Unused
 				self.offsetCoords = readStream:read(uint32)				--Unused
 				self.offsetVetrexLight = readStream:read(uint32)		--Unused
 				self.faceCount = readStream:read(uint32)
@@ -1912,7 +1918,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 			if self.flags ~= 0 then
 				writeStream:write(self.positionRule,uint32)
 				writeStream:write(self.vertexCount,uint32)
-				writeStream:write(self.offsetVerteices,uint32)
+				writeStream:write(self.offsetVertices,uint32)
 				writeStream:write(self.offsetCoords,uint32)
 				writeStream:write(self.offsetVetrexLight,uint32)
 				writeStream:write(self.faceCount,uint32)
