@@ -2416,7 +2416,7 @@ class "SkinPLG" {	typeID = 0x116,
 		end,
 		getSize = function(self)
 			local size = 4+self.usedBoneCount+self.parent.parent.struct.vertexCount*5
-			if size.version == EnumRWVersion.GTASA then
+			if self.version == EnumRWVersion.GTASA then
 				size = size+self.boneCount*16*4+3*4
 			else
 				size = size+self.boneCount*17*4
