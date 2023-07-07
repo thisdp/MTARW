@@ -1855,7 +1855,6 @@ class "Breakable" {	typeID = 0x0253F2FD,
 	vertexColors = false,
 	materialTextureNames = false,
 	materialTextureMasks = false,
-	materialAmbientColor = false,
 
 	methodContinue = {
 		read = function(self,readStream)
