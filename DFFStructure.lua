@@ -1405,7 +1405,7 @@ class "MaterialStruct" {
 		self.flags = 0
 		self.color = {255,255,255,255}
 		self.unused = 0
-		self.isTextured = 0
+		self.isTextured = false
 		self.ambient = 1
 		self.specular = 1
 		self.diffuse = 1
