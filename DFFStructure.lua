@@ -1839,7 +1839,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 	vertexCount = false,
 	offsetVertices = false,		--Unused
 	offsetCoords = false,			--Unused
-	offsetVetrexColor = false,		--Unused
+	offsetVertexLight = false,		--Unused
 	faceCount = false,
 	offsetVertexIndices = false,	--Unused
 	offsetMaterialIndices = false,	--Unused
@@ -1866,7 +1866,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 				self.vertexCount = readStream:read(uint32)
 				self.offsetVertices = readStream:read(uint32)			--Unused
 				self.offsetCoords = readStream:read(uint32)				--Unused
-				self.offsetVetrexLight = readStream:read(uint32)		--Unused
+				self.offsetVertexLight = readStream:read(uint32)		--Unused
 				self.faceCount = readStream:read(uint32)
 				self.offsetVertexIndices = readStream:read(uint32)		--Unused
 				self.offsetMaterialIndices = readStream:read(uint32)	--Unused
@@ -1920,7 +1920,7 @@ class "Breakable" {	typeID = 0x0253F2FD,
 				writeStream:write(self.vertexCount,uint32)
 				writeStream:write(self.offsetVertices,uint32)
 				writeStream:write(self.offsetCoords,uint32)
-				writeStream:write(self.offsetVetrexLight,uint32)
+				writeStream:write(self.offsetVertexLight,uint32)
 				writeStream:write(self.faceCount,uint32)
 				writeStream:write(self.offsetVertexIndices,uint32)
 				writeStream:write(self.offsetMaterialIndices,uint32)
