@@ -1063,8 +1063,9 @@ class "Geometry" {	typeID = 0x0F,
 		if not self.struct.bTextured2 == target.struct.bTextured2 then return false end
 		if not self.struct.bNative == target.struct.bNative then return false end
 		if not self.struct.hasNormals == target.struct.hasNormals then return false end
+		local oldSelf
 		if clone then	--Clone a new geometry table?
-			local oldSelf = self
+			oldSelf = self
 			self = oopUtil.deepCopy(self,self.parent)
 		end
 		
@@ -1165,6 +1166,8 @@ class "Geometry" {	typeID = 0x0F,
 				iprint(#selfExtension.nightVertexColor.colors)
 			end
 		end
+
+		return oldSelf
 	end,
 }
 
