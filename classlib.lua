@@ -217,7 +217,7 @@ class "Section" {
 			end
 		end
 	end,
-	write = function(self,writeStream)
+	write = function(self,writeStream)	
 		if not writeStream then
 			local db = debug.getinfo(3)
 			print(db.source..":"..db.currentline..": Bad writeStream at @"..self.class)
@@ -226,6 +226,7 @@ class "Section" {
 			local db = debug.getinfo(3)
 			print(db.source..":"..db.currentline..": Bad type at @"..self.class)
 		end
+		self:getSize()
 		if not tonumber(self.size) then
 			local db = debug.getinfo(3)
 			print(db.source..":"..db.currentline..": Bad size at @"..self.class)
@@ -234,8 +235,6 @@ class "Section" {
 			local db = debug.getinfo(3)
 			print(db.source..":"..db.currentline..": Bad version at @"..self.class)
 		end
-
-		self:getSize()
 
 		writeStream:write(self.type,uint32)
 		writeStream:write(self.size,uint32)
