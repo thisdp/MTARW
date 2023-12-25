@@ -234,6 +234,9 @@ class "Section" {
 			local db = debug.getinfo(3)
 			print(db.source..":"..db.currentline..": Bad version at @"..self.class)
 		end
+
+		self:getSize()
+
 		writeStream:write(self.type,uint32)
 		writeStream:write(self.size,uint32)
 		writeStream:write(self.version,uint32)
