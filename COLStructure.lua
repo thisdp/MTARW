@@ -80,12 +80,18 @@ class "COLIO" {
 		end
 	end,
 	save = function(self,fileName)
-		if fileExists(fileName) then fileDelete(fileName) end
 		self.writeStream = WriteStream()
+		self.writeStream.parent = self
 		self.collision:write(self.writeStream)
-		local f = fileCreate(fileName)
-		fileWrite(f,self.writeStream:save())
-		fileClose(f)
+		local str = self.writeStream:save()
+		if fileName then
+			if fileExists(fileName) then fileDelete(fileName) end
+			local f = fileCreate(fileName)
+			fileWrite(f,str)
+			fileClose(f)
+			return true
+		end
+		return str
 	end,
 	getSize = function(self)
 		
