@@ -1548,6 +1548,7 @@ class "Material" {	typeID = 0x07,
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = Material.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -1656,6 +1657,7 @@ class "TextureStruct" {
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = TextureStruct.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -1696,6 +1698,7 @@ class "Texture" {	typeID = 0x06,
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = Texture.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -1744,6 +1747,7 @@ class "String" {	typeID = 0x02,
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = String.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)
@@ -1768,6 +1772,7 @@ class "MorphPLG" {	typeID = 0x105,
 		self.size = self:getSize(true)
 		self.version = version
 		self.type = MorphPLG.typeID
+		return self
 	end,
 	methodContinue = {
 		read = function(self,readStream)

@@ -509,6 +509,7 @@ class "TBounds" {
 			self.center = {0,0,0}
 			self.radius = 0
 		end
+		return self
 	end,
 	read = function(self,readStream,version)
 		version = version or "COLL"
