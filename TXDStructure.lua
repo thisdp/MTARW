@@ -186,6 +186,32 @@ class "TextureDictionaryStruct" {
 	}
 }
 
+class "TextureNativeExtension" {
+	extend = "Extension",
+	data = {},
+	init = function(self,version)
+		self.size = self:getSize(true)
+		self.version = version
+		self.type = AtomicExtension.typeID
+		return self
+	end,
+	methodContinue = {
+		read = function(self,readStream)
+			if self.size > 0 then
+				self.data = readStream:read(char, self.size)
+			end
+		end,
+		write = function(self,writeStream)
+			if self.size > 0 then
+				writeStream:write(self.data)
+			end
+		end,
+		getSize = function(self)
+			return #self.data
+		end,
+	}
+}
+
 class "TextureDictionary" {	typeID = 0x16,
 	extend = "Section",
 	struct = false,
@@ -199,7 +225,7 @@ class "TextureDictionary" {	typeID = 0x16,
 				self.textureNatives[i] = TextureNative()
 				self.textureNatives[i]:read(readStream)	--Texture Native
 			end
-			self.extension = Extension()
+			self.extension = TextureNativeExtension()
 			self.extension:read(readStream)
 		end,
 		write = function(self,writeStream)
@@ -232,95 +258,84 @@ class "TextureDictionary" {	typeID = 0x16,
 
 class "TextureNativeStruct" {
 	extend = "Struct",
-	platform = false,
-	filterAddressing = false,	--4Bytes
-	name = false,	--32Bytes
-	mask = false,	--32Bytes
-	format = false,	--4Bytes
-	d3dformat = false,	--4Bytes
-	width = false,	--2Bytes
-	height = false,	--2Bytes
-	depth = false,	--1Bytes
-	mipmapLevels = false,	--1Bytes
-	type = false,	--1Bytes
-	flags = false,	--1Bytes
-	textures = false,	--(4+texSize)*Number Bytes
+
+	version = false,
+    filterFlags = false,
+    textureName = false,
+    maskName = false,
+	maskFlags = false,
+	textureFormat = false,
+	width = false,
+	height = false,
+	depth = false,
+	mipMapCount = false,
+	texCodeType = false,
+	flags = false,
+	palette = false,
+	dataSize = false,
+	data = false,
+	mipmaps = false,
+	mipmapSizes = false,
+
 	methodContinue = {
 		read = function(self,readStream)
-			self.platform = readStream:read(uint32)
-			if self.platform == EnumPlatform.PLATFORM_D3D9 then
-				self.filterAddressing = readStream:read(uint32);
-				self.name = readStream:read(char,32);
-				self.mask = readStream:read(char,32);
-				self.format = readStream:read(int32)
-				self.d3dformat = readStream:read(int32)
-				self.width = readStream:read(uint16)
-				self.height = readStream:read(uint16)
-				self.depth = readStream:read(uint8)
-				self.mipmapLevels = readStream:read(uint8)
-				self.type = readStream:read(uint8)
-				self.rasterFormat = bitOr(self.format,self.type,0x80)
-				self.flags = readStream:read(uint8)
-				--HAS_ALPHA           (1<<0)
-				--IS_CUBE             (1<<1)
-				--USE_AUTOMIPMAPGEN   (1<<2)
-				--IS_COMPRESSED       (1<<3)
-				if bitAnd(self.flags,8) then--is compressed
-					if bitAnd(self.flags,2) then 
-						--todo: err: Can't have cube maps yet
-					end
-				elseif bitAnd(self.flags,2) then
-					--todo: err: Can't have cube maps yet
-				end
-				if bitAnd(self.rasterFormat,0x4000) ~= 0 then
-					self.palette = readStream:read(bytes,4*32)
-				elseif bitAnd(self.rasterFormat,0x2000) ~= 0 then
-					self.palette = readStream:read(bytes,4*256)
-				end
-				self.textures = {}
-				local size,data
-				for i=1,self.mipmapLevels do
-					size = readStream:read(uint32)
-					data = readStream:read(bytes,size)
-					self.textures[i] = data
-				end
+			self.version = readStream:read(uint32)
+            self.filterFlags = readStream:read(uint32);
+            self.name = readStream:read(char,32);
+            self.mask = readStream:read(char,32);
+			self.maskFlags = readStream:read(uint32);
+
+			self.textureFormat = readStream:read(uint32);
+			self.width = readStream:read(uint16);
+			self.height = readStream:read(uint16);
+			self.depth = readStream:read(uint8);
+			self.mipMapCount = readStream:read(uint8);
+			self.texCodeType = readStream:read(uint8);
+			self.flags = readStream:read(uint8);
+
+			self.palette = readStream:read(char, self.depth == 7 and 256 * 4 or 0);
+
+			self.dataSize = readStream:read(uint32);
+			self.data = readStream:read(char, self.dataSize);
+			
+			self.mipmaps = {}
+			self.mipmapSizes = {}
+
+			for i = 1, self.mipMapCount - 1 do
+				local size = readStream:read(uint32)
+				local data = readStream:read(bytes,size)
+				self.mipmaps[i] = data
+				self.mipmapSizes[i] = size
 			end
-		end,
+        end,
 		write = function(self,writeStream)
-			writeStream:write(self.platform,uint32)
-			if self.platform == EnumPlatform.PLATFORM_D3D9 then
-				writeStream:write(self.filterAddressing,uint32)
-				writeStream:write(self.name,char,32)
-				writeStream:write(self.mask,char,32)
-				writeStream:write(self.format,int32)
-				writeStream:write(self.d3dformat,int32)
-				writeStream:write(self.width,uint16)
-				writeStream:write(self.height,uint16)
-				writeStream:write(self.depth,uint8)
-				writeStream:write(self.mipmapLevels,uint8)
-				writeStream:write(self.type,uint8)
-				writeStream:write(self.flags,uint8)
-				--if not isExported then --This doesn't belong to dds
-					if bitAnd(self.rasterFormat,0x4000) == 1 then
-						writeStream:write(self.palette,bytes,4*32)
-					elseif bitAnd(self.rasterFormat,0x2000) == 1 then
-						writeStream:write(self.palette,bytes,4*256)
-					end
-				--end
-				for i=1,#self.textures do
-					writeStream:write(#self.textures[i],uint32)
-					writeStream:write(self.textures[i],bytes,#self.textures[i])
-				end
+			writeStream:write(self.version, uint32)
+			writeStream:write(self.filterFlags, uint32)
+			writeStream:write(self.name, char, 32)
+			writeStream:write(self.mask, char, 32)
+			writeStream:write(self.maskFlags, uint32)
+			
+			writeStream:write(self.textureFormat, uint32)
+			writeStream:write(self.width, uint16)
+			writeStream:write(self.height, uint16)
+			writeStream:write(self.depth, uint8)
+			writeStream:write(self.mipMapCount, uint8)
+			writeStream:write(self.texCodeType, uint8)
+			writeStream:write(self.flags, uint8)
+
+			writeStream:write(self.palette, char, self.depth == 7 and 256 * 4 or 0)
+
+			writeStream:write(self.dataSize, uint32)
+			writeStream:write(self.data, char, self.dataSize)
+
+			for i = 1, self.mipMapCount - 1 do
+				local data = self.mipmaps[i]
+				local size = self.mipmapSizes[i]
+				writeStream:write(size, uint32)
+				writeStream:write(data, bytes, size)
 			end
 		end,
-		getSize = function(self)
-			local size = 88
-			for i=1,#self.textures do
-				size = size+(4+#self.textures[i])
-			end
-			return size
-		end,
-	}
+    }
 }
 
 class "TextureNative" {	typeID = 0x15,
@@ -331,7 +346,7 @@ class "TextureNative" {	typeID = 0x15,
 		read = function(self,readStream)
 			self.struct = TextureNativeStruct()
 			self.struct:read(readStream)
-			self.extension = Extension()
+			self.extension = TextureNativeExtension()
 			self.extension:read(readStream)
 		end,
 		write = function(self,writeStream)
