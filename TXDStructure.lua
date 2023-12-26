@@ -252,7 +252,18 @@ class "TextureDictionary" {	typeID = 0x16,
 		end
 	end,
 	removeByName = function(self,name)
-	
+		local txdChildren = self.textureNatives
+		for i=1,#txdChildren do
+			local texNative = txdChildren[i]	--Texture Native
+			if texNative.struct.name == name then
+				table.remove(self.textureNatives,i)
+				self.struct.textureNativeCount = self.struct.textureNativeCount-1
+				--Recalculate Size
+				self.size = self:getSize()
+				return true
+			end
+		end
+		return false
 	end,
 }
 
