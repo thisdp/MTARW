@@ -86,8 +86,6 @@ function rwioGetTXDVersion(gtaVer,platform)
 	return EnumRWTXDVersion[gtaVer][platform]
 end
 
-
-
 class "TXDIO" {
 	textureDictionary = false,
 	readStream = false,
@@ -246,7 +244,7 @@ class "TextureNativeStruct" {
 	mipmapLevels = false,	--1Bytes
 	type = false,	--1Bytes
 	flags = false,	--1Bytes
-	textures = {},	--(4+texSize)*Number Bytes
+	textures = false,	--(4+texSize)*Number Bytes
 	methodContinue = {
 		read = function(self,readStream)
 			self.platform = readStream:read(uint32)
@@ -279,6 +277,7 @@ class "TextureNativeStruct" {
 				elseif bitAnd(self.rasterFormat,0x2000) ~= 0 then
 					self.palette = readStream:read(bytes,4*256)
 				end
+				self.textures = {}
 				local size,data
 				for i=1,self.mipmapLevels do
 					size = readStream:read(uint32)
