@@ -151,7 +151,7 @@ class "TXDIO" {
 		local txdChildren = self.textureDictionary.textureNatives
 		if not txdChildren[textureID] then return false end
 		local texNative = txdChildren[textureID]
-		if texNative.struct.d3dformat == EnumD3DFormat.DXT1 or texNative.struct.d3dformat == EnumD3DFormat.DXT3 or texNative.struct.d3dformat == EnumD3DFormat.DXT5 then --DXT
+		if texNative.struct.textureFormat == EnumD3DFormat.DXT1 or texNative.struct.textureFormat == EnumD3DFormat.DXT3 or texNative.struct.textureFormat == EnumD3DFormat.DXT5 then --DXT
 			local dds = DDSTexture()
 			dds:convertFromTXD(texNative)
 			local writeStream = WriteStream()
