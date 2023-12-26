@@ -209,7 +209,7 @@ class "TextureDictionary" {	typeID = 0x16,
 			for i=1,self.struct.textureNativeCount do
 				self.textureNatives[i]:write(writeStream)
 			end
-			self.extension:write(readStream)
+			self.extension:write(writeStream)
 		end,
 		getSize = function(self)
 			local size = self.struct:getSize()+self.extension:getSize()
@@ -337,7 +337,7 @@ class "TextureNative" {	typeID = 0x15,
 		end,
 		write = function(self,writeStream)
 			self.struct:write(writeStream)
-			self.extension:write(readStream)
+			self.extension:write(writeStream)
 		end,
 		getSize = function(self)
 			return self.struct:getSize()+self.extension:getSize()
