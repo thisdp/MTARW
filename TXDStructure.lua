@@ -272,10 +272,7 @@ class "TextureNativeStruct" {
 	texCodeType = false,
 	flags = false,
 	palette = false,
-	dataSize = false,
-	data = false,
 	mipmaps = false,
-	mipmapSizes = false,
 
 	methodContinue = {
 		read = function(self,readStream)
@@ -294,18 +291,13 @@ class "TextureNativeStruct" {
 			self.flags = readStream:read(uint8);
 
 			self.palette = readStream:read(char, self.depth == 7 and 256 * 4 or 0);
-
-			self.dataSize = readStream:read(uint32);
-			self.data = readStream:read(char, self.dataSize);
 			
 			self.mipmaps = {}
-			self.mipmapSizes = {}
 
-			for i = 1, self.mipMapCount - 1 do
+			for i = 1, self.mipMapCount do
 				local size = readStream:read(uint32)
 				local data = readStream:read(bytes,size)
 				self.mipmaps[i] = data
-				self.mipmapSizes[i] = size
 			end
         end,
 		write = function(self,writeStream)
@@ -325,12 +317,9 @@ class "TextureNativeStruct" {
 
 			writeStream:write(self.palette, char, self.depth == 7 and 256 * 4 or 0)
 
-			writeStream:write(self.dataSize, uint32)
-			writeStream:write(self.data, char, self.dataSize)
-
-			for i = 1, self.mipMapCount - 1 do
+			for i = 1, self.mipMapCount do
 				local data = self.mipmaps[i]
-				local size = self.mipmapSizes[i]
+				local size = #data
 				writeStream:write(size, uint32)
 				writeStream:write(data, bytes, size)
 			end
