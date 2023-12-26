@@ -494,17 +494,17 @@ class "DDSTexture" {
 		self.ddsHeader = DDSHeader()
 		self.ddsHeader.height = textureNative.struct.height
 		self.ddsHeader.width = textureNative.struct.width
-		self.ddsHeader.mipmapLevels = textureNative.struct.mipmapLevels
-		self.ddsHeader.pixelFormat.d3dformat = textureNative.struct.d3dformat
+		self.ddsHeader.mipmapLevels = textureNative.struct.mipMapCount
+		self.ddsHeader.pixelFormat.d3dformat = textureNative.struct.textureFormat
 		local d3dFmt = self.ddsHeader.pixelFormat.d3dformat
 		if not (d3dFmt == EnumD3DFormat.DXT1 or d3dFmt == EnumD3DFormat.DXT3 or d3dFmt == EnumD3DFormat.DXT5) then return false end
 		local writeStream = WriteStream()
-		if textureNative.struct.mipmapLevels ~= 1 then
+		if textureNative.struct.mipMapCount ~= 1 then
 			self.ddsHeader.caps.caps1 = bitOr(self.ddsHeader.caps.caps1,EnumDDSCaps1.MIPMAP,EnumDDSCaps1.COMPLEX)
 		end
-		for i=1,textureNative.struct.mipmapLevels do
+		for i=1,textureNative.struct.mipMapCount do
 			--writeStream:write(#textureNative.struct.textures[i],uint32)
-			writeStream:write(textureNative.struct.textures[i],bytes)
+			writeStream:write(textureNative.struct.mipmaps[i],bytes)
 		end
 		self.ddsTextureData = writeStream:save()
 		return true
