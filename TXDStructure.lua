@@ -270,7 +270,7 @@ class "TextureDictionary" {	typeID = 0x16,
 class "TextureNativeStruct" {
 	extend = "Struct",
 
-	version = false,
+	platform = false,
     filterFlags = false,
     textureName = false,
     maskName = false,
@@ -287,7 +287,7 @@ class "TextureNativeStruct" {
 
 	methodContinue = {
 		read = function(self,readStream)
-			self.version = readStream:read(uint32)
+			self.platform = readStream:read(uint32)
             self.filterFlags = readStream:read(uint32);
             self.name = readStream:read(char,32);
             self.mask = readStream:read(char,32);
@@ -312,7 +312,7 @@ class "TextureNativeStruct" {
 			end
         end,
 		write = function(self,writeStream)
-			writeStream:write(self.version, uint32)
+			writeStream:write(self.platform, uint32)
 			writeStream:write(self.filterFlags, uint32)
 			writeStream:write(self.name, char, 32)
 			writeStream:write(self.mask, char, 32)
