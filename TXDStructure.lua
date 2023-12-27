@@ -114,7 +114,7 @@ class "TXDIO" {
 	--Custom Functions
 	listTextures = function(self)
 		local nameList = {}
-		local txdChildren = self.textureDictionary.textureNatives
+		local txdChildren = self.textureDictionary.textures
 		for i=1,#txdChildren do
 			local texNative = txdChildren[i]	--Texture Native
 			nameList[i] = texNative.struct.name
@@ -122,13 +122,13 @@ class "TXDIO" {
 		return nameList
 	end,
 	getTextureNativeDataByIndex = function(self,index)
-		local txdChildren = self.textureDictionary.textureNatives
+		local txdChildren = self.textureDictionary.textures
 		if txdChildren[index] then
 			return txdChildren[index].struct
 		end
 	end,
 	getTextureNativeDataByName = function(self,name)
-		local txdChildren = self.textureDictionary.textureNatives
+		local txdChildren = self.textureDictionary.textures
 		local textureDataList = {}
 		for i=1,#txdChildren do
 			local texNative = txdChildren[i]	--Texture Native
@@ -161,7 +161,7 @@ class "TXDIO" {
 		--todo
 	end,
 	getTexture = function(self,textureID)
-		local txdChildren = self.textureDictionary.textureNatives
+		local txdChildren = self.textureDictionary.textures
 		if not txdChildren[textureID] then return false end
 		local texNative = txdChildren[textureID]
 		if texNative.struct.textureFormat == EnumD3DFormat.DXT1 or texNative.struct.textureFormat == EnumD3DFormat.DXT3 or texNative.struct.textureFormat == EnumD3DFormat.DXT5 then --DXT
@@ -178,19 +178,26 @@ class "TXDIO" {
 			return writeStream:save()
 		end
 	end,
+
+	addTexture = function(self,name,texture)
+		local index = self.textureContainer:addTexture(name)
+		self:setTextureByIndex(index,texture)
+
+		return index
+	end
 }
 
 class "TextureDictionaryStruct" {
 	extend = "Struct",
-	textureNativeCount = false,
+	count = false,
 	deviceID = false,
 	methodContinue = {
 		read = function(self,readStream)
-			self.textureNativeCount = readStream:read(uint16)	--2Bytes
+			self.count = readStream:read(uint16)	--2Bytes
 			self.deviceID = readStream:read(uint16)	--2Bytes
 		end,
 		write = function(self,writeStream)
-			writeStream:write(self.textureNativeCount,uint16)
+			writeStream:write(self.count,uint16)
 			writeStream:write(self.deviceID,uint16)
 		end,
 		getSize = function(self)
@@ -210,6 +217,7 @@ class "TextureNativeExtension" {
 	end,
 	methodContinue = {
 		read = function(self,readStream)
+			self.size = self:getSize(true)
 			if self.size > 0 then
 				self.data = readStream:read(char, self.size)
 			end
@@ -228,55 +236,65 @@ class "TextureNativeExtension" {
 class "TextureDictionary" {	typeID = 0x16,
 	extend = "Section",
 	struct = false,
-	textureNatives = {},
+	textures = {},
 	extension = false,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = TextureDictionaryStruct()
 			self.struct:read(readStream)
-			for i=1,self.struct.textureNativeCount do
-				self.textureNatives[i] = TextureNative()
-				self.textureNatives[i]:read(readStream)	--Texture Native
+			for i=1,self.struct.count do
+				self.textures[i] = TextureNative()
+				self.textures[i]:read(readStream)	--Texture Native
 			end
 			self.extension = TextureNativeExtension()
 			self.extension:read(readStream)
 		end,
 		write = function(self,writeStream)
 			self.struct:write(writeStream)
-			for i=1,self.struct.textureNativeCount do
-				self.textureNatives[i]:write(writeStream)
+			for i=1,self.struct.count do
+				self.textures[i]:write(writeStream)
 			end
 			self.extension:write(writeStream)
 		end,
 		getSize = function(self)
 			local size = self.struct:getSize()+self.extension:getSize()
-			for i=1,self.struct.textureNativeCount do
-				size = size+self.textureNatives[i]:getSize()
+			for i=1,self.struct.count do
+				size = size+self.textures[i]:getSize()
 			end
 			return size
 		end,
 	},
 	removeByID = function(self,index)
-		if self.textureNatives[index] then
-			table.remove(self.textureNatives,index)
-			self.struct.textureNativeCount = self.struct.textureNativeCount-1
+		if self.textures[index] then
+			table.remove(self.textures,index)
+			self.struct.count = self.struct.count-1
 			--Recalculate Size
 			self.size = self:getSize()
 		end
 	end,
 	removeByName = function(self,name)
-		local txdChildren = self.textureNatives
+		local txdChildren = self.textures
 		for i=1,#txdChildren do
 			local texNative = txdChildren[i]	--Texture Native
 			if texNative.struct.name == name then
-				table.remove(self.textureNatives,i)
-				self.struct.textureNativeCount = self.struct.textureNativeCount-1
+				table.remove(self.textures,i)
+				self.struct.count = self.struct.count-1
 				--Recalculate Size
 				self.size = self:getSize()
 				return true
 			end
 		end
 		return false
+	end,
+	addTexture = function(self,name)
+		local textureNative = TextureNative():init(402915327)
+		textureNative.struct.name = name
+		
+		table.insert(self.textures,textureNative)
+		self.struct.count = self.struct.count+1
+		self.size = self:getSize()
+		
+		return self.struct.count
 	end,
 }
 
@@ -285,8 +303,8 @@ class "TextureNativeStruct" {
 
 	platform = false,
     filterFlags = false,
-    textureName = false,
-    maskName = false,
+    name = false,
+    mask = false,
 	maskFlags = false,
 	textureFormat = false,
 	width = false,
@@ -297,6 +315,28 @@ class "TextureNativeStruct" {
 	flags = false,
 	palette = false,
 	mipmaps = false,
+
+	init = function(self,version)
+		self.platform = 9 -- 9 = PC
+		self.filterFlags = 0x1106
+		self.name = ""
+		self.mask = ""
+		self.maskFlags = 0x8200
+		self.textureFormat = 0
+		self.width = 0
+		self.height = 0
+		self.depth = 16
+		self.mipMapCount = 9
+		self.texCodeType = 4
+		self.flags = 0x8
+		self.palette = ""
+		self.mipmaps = {}
+		self.version = version
+		self.size = self:getSize()
+		self.sizeVersion = 0
+		self.type = 1
+		return self
+	end,
 
 	methodContinue = {
 		read = function(self,readStream)
@@ -325,6 +365,8 @@ class "TextureNativeStruct" {
 			end
         end,
 		write = function(self,writeStream)
+			self.size = self:getSize()
+
 			writeStream:write(self.platform, uint32)
 			writeStream:write(self.filterFlags, uint32)
 			writeStream:write(self.name, char, 32)
@@ -355,6 +397,17 @@ class "TextureNative" {	typeID = 0x15,
 	extend = "Section",
 	struct = false,
 	extension = false,
+	init = function(self,version)
+		self.struct = TextureNativeStruct():init(version)
+		self.extension = TextureNativeExtension():init(version)
+		self.type = TextureNative.typeID
+
+		self.size = self:getSize()
+		self.sizeVersion = 0
+		self.type = TextureNative.typeID
+		self.version = version
+		return self
+	end,
 	methodContinue = {
 		read = function(self,readStream)
 			self.struct = TextureNativeStruct()
@@ -363,6 +416,7 @@ class "TextureNative" {	typeID = 0x15,
 			self.extension:read(readStream)
 		end,
 		write = function(self,writeStream)
+			self.size = self:getSize()
 			self.struct:write(writeStream)
 			self.extension:write(writeStream)
 		end,
