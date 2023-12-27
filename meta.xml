@@ -4,6 +4,7 @@
 	<script src="utils.lua" type="client" />
 	<script src="IMGLoader.lua" type="client" />
 	<script src="2DFX.lua" type="client" />
+	<script src="DDSMipmaps.lua" type="client" />
 	<script src="TXDStructure.lua" type="client" />
 	<script src="DFFStructure.lua" type="client" />
 	<script src="COLStructure.lua" type="client" />

@@ -144,6 +144,19 @@ class "TXDIO" {
 	removeTextureDataByIndex = function(self,index)
 		return self.textureDictionary:removeByID(index)
 	end,
+	setTextureByIndex = function(self,textureID,texture)
+		assert(type(texture) == 'userdata' and getElementType(texture) == 'texture','Invalid texture element')
+
+		local txdChildren = self.textureContainer.textures
+		if not txdChildren[textureID] then return false end
+
+		local texNative = txdChildren[textureID]
+		local dds = DDSTexture()
+		local ddsData = getDdsWithMipmapsManually(texture)
+		dds.ddsTextureData = ddsData
+		dds:convertToTXD(texNative)
+		return true
+	end,
 	addTexture = function(self,textureName)
 		--todo
 	end,
@@ -476,18 +489,44 @@ class "DDSHeader" {
 	end,
 }
 
+class "DDSMipmap" {
+	size = false,
+	data = false,
+	read = function(self,readStream)
+		self.data = readStream:read(bytes,self.size)
+	end,
+	write = function(self,writeStream)
+		writeStream:write(self.data,bytes,self.size)
+	end,
+}
+
 class "DDSTexture" {
 	ddsHeader = false,
-	ddsTextureData = false,
+	mipmaps = false,
 	read = function(self,readStream)
 		self.ddsHeader = DDSHeader()
 		self.ddsHeader:read(readStream)
-		self.ddsTextureData = readStream:read(bytes)
+		local size = readStream.length - readStream.readingPos
+		self.mipmaps = {}
+		for i=1,self.ddsHeader.mipmapLevels do
+			local mipmap = DDSMipmap()
+			local width = math.max(1, math.floor(self.ddsHeader.width / (2^(i-1))))
+			local height = math.max(1, math.floor(self.ddsHeader.height / (2^(i-1))))
+			local size = getMipMapSize(width,height,self.ddsHeader.pixelFormat.d3dformat)
+			mipmap.size = size
+			mipmap:read(readStream)
+			self.mipmaps[i] = mipmap
+		end
 	end,
 	write = function(self,writeStream)
 		writeStream = writeStream or WriteStream()
 		self.ddsHeader:write(writeStream)
-		writeStream:write(self.ddsTextureData,bytes)
+		for i=1,#self.mipmaps do
+			local width = math.max(1, math.floor(self.ddsHeader.width / (2^(i-1))))
+			local height = math.max(1, math.floor(self.ddsHeader.height / (2^(i-1))))
+			local size = getMipMapSize(width,height,self.ddsHeader.pixelFormat.d3dformat)
+			self.mipmaps[i]:write(writeStream)
+		end
 		return writeStream
 	end,
 	convertFromTXD = function(self,textureNative)
@@ -506,7 +545,30 @@ class "DDSTexture" {
 			--writeStream:write(#textureNative.struct.textures[i],uint32)
 			writeStream:write(textureNative.struct.mipmaps[i],bytes)
 		end
-		self.ddsTextureData = writeStream:save()
+			-- self.ddsTextureData = writeStream:save()
+		self.mipmaps = {}
+		for i=1,textureNative.struct.mipMapCount do
+			self.mipmaps[i] = DDSMipmap()
+			self.mipmaps[i].size = #textureNative.struct.mipmaps[i]
+			self.mipmaps[i].data = textureNative.struct.mipmaps[i]
+		end
+		return true
+	end,
+	convertToTXD = function(self,texNative)
+		local readStream = ReadStream(self.ddsTextureData)
+		local ddsTexture = DDSTexture()
+		ddsTexture:read(readStream)
+		local ddsHeader = ddsTexture.ddsHeader
+		local d3dFmt = ddsHeader.pixelFormat.d3dformat
+		if not (d3dFmt == EnumD3DFormat.DXT1 or d3dFmt == EnumD3DFormat.DXT3 or d3dFmt == EnumD3DFormat.DXT5) then return false end
+		texNative.struct.width = ddsHeader.width
+		texNative.struct.height = ddsHeader.height
+		texNative.struct.textureFormat = ddsHeader.pixelFormat.d3dformat
+		texNative.struct.mipMapCount = ddsHeader.mipmapLevels
+		texNative.struct.mipmaps = {}
+		for i=1,ddsHeader.mipmapLevels do
+			texNative.struct.mipmaps[i] = ddsTexture.mipmaps[i].data
+		end
 		return true
 	end,
 	saveFile = function(self,fileName)
